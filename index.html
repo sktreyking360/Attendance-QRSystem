@@ -1,0 +1,1560 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Event Attendance System Pro</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- QRCode.js (For Generating IDs) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+    <!-- HTML2Canvas -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- HTML5-QRCode (For Scanning) -->
+    <script src="https://unpkg.com/html5-qrcode"></script>
+    <!-- SweetAlert2 -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        primary: '#0f172a', /* Deep Slate */
+                        secondary: '#3b82f6', /* Bright Blue */
+                        accent: '#10b981', /* Emerald */
+                        dark: '#020617',
+                        light: '#f8fafc'
+                    },
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                    }
+                }
+            }
+        }
+    </script>
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        
+        body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: transparent; }
+        ::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
+        ::-webkit-scrollbar-thumb:hover { background: #94a3b8; }
+        
+        .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+        
+        .id-card { width: 250px; height: 400px; background: url('https://www.transparenttextures.com/patterns/cubes.png'), linear-gradient(to bottom, #ffffff, #f8fafc); border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); position: relative; overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
+        .id-card-header { background: #0f172a; color: white; width: 100%; text-align: center; padding: 15px 0; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.05em; }
+        .id-photo-placeholder { width: 110px; height: 110px; background: #e2e8f0; border-radius: 50%; margin-top: 25px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #94a3b8; border: 4px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; object-fit: cover; }
+        .id-photo-placeholder img { width: 100%; height: 100%; object-fit: cover; }
+        
+        .btn-loading { pointer-events: none; opacity: 0.8; }
+        
+        /* Loading Overlay */
+        #loading-overlay { position: fixed; inset: 0; background: rgba(255,255,255,0.95); z-index: 99999; display: flex; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(5px); }
+        .spinner { border: 4px solid #e2e8f0; border-top: 4px solid #3b82f6; border-radius: 50%; width: 50px; height: 50px; animation: spin 1s linear infinite; }
+        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+        /* Print Styles */
+        #print-container { display: none; }
+        @media print {
+            @page { size: landscape; margin: 15mm; }
+            body { background-color: white !important; margin: 0; padding: 0; }
+            body > *:not(#print-container) { display: none !important; }
+            #print-container { display: block !important; width: 100%; }
+        }
+    </style>
+</head>
+<body class="text-gray-800 h-screen flex flex-col overflow-hidden">
+
+    <!-- Printable Container -->
+    <div id="print-container"></div>
+
+    <!-- App Loading Overlay -->
+    <div id="loading-overlay">
+        <div class="spinner mb-4"></div>
+        <h2 class="text-2xl font-bold text-gray-800 tracking-tight">Loading System</h2>
+        <p class="text-gray-500 text-sm mt-2">Connecting to database...</p>
+    </div>
+
+    <!-- 1. LOGIN VIEW -->
+    <div id="view-login" class="flex-1 flex items-center justify-center bg-dark w-full h-full absolute top-0 left-0 z-50 hidden">
+        <div class="bg-white p-8 sm:p-10 rounded-2xl shadow-2xl w-full max-w-sm mx-4 fade-in border border-gray-100">
+            <div class="text-center mb-8">
+                <div class="inline-flex items-center justify-center w-16 h-16 rounded-full bg-blue-50 mb-4">
+                    <i class="fas fa-fingerprint text-3xl text-secondary"></i>
+                </div>
+                <h1 class="text-2xl font-bold text-gray-900 tracking-tight">Admin Portal</h1>
+                <p class="text-sm text-gray-500 mt-1">Sign in to manage events</p>
+            </div>
+            <form id="login-form" onsubmit="handleLogin(event)">
+                <div class="mb-5">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
+                    <input type="text" id="login-user" value="admin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none">
+                </div>
+                <div class="mb-6">
+                    <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
+                    <input type="password" id="login-pass" value="password" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none">
+                </div>
+                <button type="submit" id="btn-login" class="w-full bg-primary text-white py-3 rounded-xl hover:bg-gray-800 shadow-lg shadow-gray-900/20 transition-all font-semibold flex justify-center items-center gap-2">
+                    <span>Sign In</span> <i class="fas fa-arrow-right text-sm"></i>
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- MAIN APP WRAPPER -->
+    <div id="app-wrapper" class="hidden flex flex-col h-full w-full overflow-hidden">
+        <!-- Navigation -->
+        <nav class="bg-primary text-white z-40 shrink-0">
+            <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+                <div class="flex items-center justify-between h-16">
+                    <div class="flex items-center gap-3 cursor-pointer" onclick="navigateTo('dashboard')">
+                        <div class="bg-white/10 p-2 rounded-lg"><i class="fas fa-calendar-check text-xl"></i></div>
+                        <span class="font-bold text-lg tracking-wide hidden sm:block">EventMaster<span class="text-secondary font-black">PRO</span></span>
+                    </div>
+                    <div class="flex space-x-1 sm:space-x-2">
+                        <button onclick="navigateTo('dashboard')" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-all flex items-center gap-2"><i class="fas fa-chart-pie"></i><span class="hidden sm:inline">Dashboard</span></button>
+                        <button onclick="navigateTo('employees')" class="nav-btn px-3 py-2 rounded-lg text-sm font-medium hover:bg-white/10 transition-all flex items-center gap-2"><i class="fas fa-users"></i><span class="hidden sm:inline">Directory</span></button>
+                        <div class="w-px h-6 bg-white/20 my-auto mx-2 hidden sm:block"></div>
+                        <button onclick="logout()" class="px-3 py-2 rounded-lg text-sm font-medium hover:bg-red-500/20 text-red-400 hover:text-red-300 transition-all"><i class="fas fa-sign-out-alt"></i></button>
+                    </div>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <main class="flex-1 overflow-y-auto p-4 sm:p-8 relative">
+            
+            <!-- 2. DASHBOARD VIEW -->
+            <div id="view-dashboard" class="max-w-7xl mx-auto hidden fade-in">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                    <div>
+                        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Dashboard</h2>
+                        <p class="text-gray-500 text-sm mt-1">Manage all your events and attendance</p>
+                    </div>
+                    <button onclick="openModal('modal-create-event')" class="w-full sm:w-auto bg-secondary hover:bg-blue-600 text-white px-5 py-2.5 rounded-xl shadow-lg shadow-blue-500/30 transition-all font-semibold flex items-center justify-center gap-2">
+                        <i class="fas fa-plus"></i> Create Event
+                    </button>
+                </div>
+
+                <div class="bg-white p-2 rounded-xl shadow-sm border border-gray-200 mb-8 flex flex-col sm:flex-row gap-2">
+                    <select id="filter-status" class="bg-gray-50 border-none rounded-lg px-4 py-2.5 outline-none w-full sm:w-48 text-sm font-medium text-gray-700 cursor-pointer hover:bg-gray-100 transition-colors" onchange="renderEvents()">
+                        <option value="all">All Events</option>
+                        <option value="ongoing">Ongoing Events</option>
+                        <option value="finished">Finished Events</option>
+                    </select>
+                    <div class="relative flex-1">
+                        <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                        <input type="text" id="filter-search" placeholder="Search by name or location..." class="w-full bg-gray-50 border-none rounded-lg pl-10 pr-4 py-2.5 outline-none text-sm transition-colors focus:bg-white focus:ring-2 focus:ring-secondary" oninput="renderEvents()">
+                    </div>
+                </div>
+
+                <div id="events-grid" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6"></div>
+            </div>
+
+            <!-- 3. EMPLOYEE & ID MODULE VIEW -->
+            <div id="view-employees" class="max-w-7xl mx-auto hidden fade-in w-full">
+                <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-8">
+                    <div>
+                        <h2 class="text-2xl sm:text-3xl font-bold text-gray-900 tracking-tight">Employee Directory</h2>
+                        <p class="text-gray-500 text-sm mt-1">Manage personnel and generate QR IDs</p>
+                    </div>
+                    <div class="flex w-full sm:w-auto gap-2">
+                        <button onclick="openModal('modal-import-csv')" class="flex-1 sm:flex-none bg-white border border-gray-300 hover:bg-gray-50 text-gray-700 px-4 py-2.5 rounded-xl shadow-sm transition-all font-semibold flex items-center justify-center gap-2 text-sm">
+                            <i class="fas fa-file-csv"></i> Import
+                        </button>
+                        <button onclick="openModal('modal-add-employee')" class="flex-1 sm:flex-none bg-primary hover:bg-gray-800 text-white px-4 py-2.5 rounded-xl shadow-lg shadow-gray-900/20 transition-all font-semibold flex items-center justify-center gap-2 text-sm">
+                            <i class="fas fa-user-plus"></i> Add Employee
+                        </button>
+                    </div>
+                </div>
+
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+                    <div class="p-4 border-b border-gray-100 bg-white">
+                        <div class="relative w-full sm:w-72">
+                            <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                            <input type="text" id="emp-search" placeholder="Search employee..." class="w-full bg-gray-50 border-none rounded-lg pl-10 pr-4 py-2 outline-none text-sm focus:bg-white focus:ring-2 focus:ring-secondary" oninput="renderEmployees()">
+                        </div>
+                    </div>
+                    <div class="overflow-x-auto overflow-y-auto max-h-[600px] w-full">
+                        <table class="w-full text-left border-collapse min-w-[800px]">
+                            <thead class="sticky top-0 z-10">
+                                <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold border-b border-gray-200 shadow-sm">
+                                    <th class="p-4 pl-6 w-16">Photo</th>
+                                    <th class="p-4">Employee Details</th>
+                                    <th class="p-4">Office Assignment</th>
+                                    <th class="p-4">Contact</th>
+                                    <th class="p-4 text-center">Actions</th>
+                                </tr>
+                            </thead>
+                            <tbody id="employee-table-body" class="text-sm divide-y divide-gray-100 bg-white"></tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 4. EVENT DETAILS VIEW -->
+            <div id="view-event-detail" class="max-w-7xl mx-auto hidden fade-in w-full">
+                <button onclick="navigateTo('dashboard')" class="text-gray-500 hover:text-secondary mb-6 flex items-center gap-2 transition-colors text-sm font-medium w-fit">
+                    <i class="fas fa-arrow-left"></i> Back to Dashboard
+                </button>
+                
+                <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 sm:p-8 mb-6 relative overflow-hidden">
+                    <div class="absolute top-0 right-0 w-64 h-64 bg-secondary/5 rounded-bl-full -z-10 pointer-events-none"></div>
+                    <div class="flex flex-col md:flex-row justify-between items-start gap-6">
+                        <div class="flex-1">
+                            <div class="flex items-center gap-3 mb-2">
+                                <span id="det-event-status" class="px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border">STATUS</span>
+                                <button onclick="toggleEventStatus()" id="btn-toggle-status" class="text-xs text-secondary hover:text-blue-700 underline decoration-dotted underline-offset-2">Change Status</button>
+                            </div>
+                            <h2 id="det-event-name" class="text-3xl font-extrabold text-gray-900 tracking-tight mb-2">Event Name</h2>
+                            <p id="det-event-desc" class="text-gray-600 mb-6 max-w-2xl leading-relaxed">Description</p>
+                            <div class="flex flex-wrap gap-4 text-sm text-gray-700 font-medium bg-gray-50 p-3 rounded-xl border border-gray-100 w-fit">
+                                <span class="flex items-center gap-2"><i class="fas fa-map-marker-alt text-gray-400"></i> <span id="det-event-loc">Loc</span></span>
+                                <div class="w-px h-4 bg-gray-300 hidden sm:block"></div>
+                                <span class="flex items-center gap-2"><i class="fas fa-calendar text-gray-400"></i> <span id="det-event-dates">Dates</span></span>
+                            </div>
+                        </div>
+                        <div class="flex flex-col gap-3 w-full md:w-48">
+                            <button onclick="openModal('modal-broadcast')" class="w-full bg-amber-500 hover:bg-amber-600 text-white px-4 py-3 rounded-xl shadow-lg shadow-amber-500/20 transition-all text-sm font-bold flex items-center justify-center gap-2">
+                                <i class="fas fa-bullhorn"></i> Broadcast
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div class="lg:col-span-2">
+                        <div class="flex justify-between items-center mb-4 px-1">
+                            <h3 class="text-xl font-bold text-gray-900 tracking-tight">Attendance Sessions</h3>
+                            <button onclick="openModal('modal-create-session')" class="bg-white border border-gray-200 text-gray-700 hover:bg-gray-50 px-4 py-2 rounded-lg shadow-sm transition-all text-sm font-semibold flex items-center gap-2">
+                                <i class="fas fa-plus text-secondary"></i> New Session
+                            </button>
+                        </div>
+                        <div id="sessions-list" class="space-y-3"></div>
+                    </div>
+                    
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-fit flex flex-col">
+                        <div class="p-5 border-b border-gray-100 bg-gray-50/50">
+                            <h3 class="font-bold text-gray-900 flex items-center gap-2"><i class="fas fa-envelope-open-text text-secondary"></i> Custom Success Email</h3>
+                            <p class="text-xs text-gray-500 mt-1">Sent automatically to employees upon scan.</p>
+                        </div>
+                        <div class="p-5 flex-1 flex flex-col gap-3">
+                            <div class="text-xs font-mono bg-gray-100 p-2 rounded text-gray-600 flex flex-wrap gap-1">
+                                <span>Tags:</span>
+                                <span class="text-blue-600 font-bold">{name}</span>
+                                <span class="text-blue-600 font-bold">{event}</span>
+                                <span class="text-blue-600 font-bold">{session}</span>
+                            </div>
+                            <textarea id="email-template-input" class="w-full h-32 border border-gray-200 rounded-xl p-4 text-sm focus:ring-2 focus:ring-secondary outline-none transition-all resize-none font-sans" placeholder="Email message..."></textarea>
+                            <input type="url" id="email-link-input" placeholder="Action Button Link (Optional)..." class="w-full bg-gray-50 border border-gray-200 rounded-lg px-4 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                            <button id="btn-save-email" onclick="saveEmailTemplate()" class="w-full bg-primary text-white py-2.5 rounded-xl hover:bg-gray-800 transition-all text-sm font-semibold shadow-md mt-1">
+                                Save Template
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- 5. ATTENDANCE SCANNER VIEW -->
+            <div id="view-attendance" class="max-w-7xl mx-auto hidden fade-in flex flex-col w-full h-full">
+                <div class="flex flex-col md:flex-row justify-between items-start md:items-end mb-6 gap-4">
+                    <div>
+                        <button onclick="navigateTo('event-detail', activeEventId)" class="text-gray-500 hover:text-secondary mb-2 flex items-center gap-2 transition-colors text-sm font-medium w-fit">
+                            <i class="fas fa-arrow-left"></i> Back to Sessions
+                        </button>
+                        <h2 id="att-session-name" class="text-3xl font-extrabold text-gray-900 tracking-tight">Session Name</h2>
+                    </div>
+                    <div class="bg-white px-5 py-3 rounded-xl border border-gray-200 shadow-sm flex flex-col items-end">
+                        <div id="live-clock" class="text-xl font-mono font-black text-secondary tracking-widest">00:00:00</div>
+                        <div id="live-date" class="text-xs text-gray-500 font-medium uppercase tracking-wider">Date</div>
+                    </div>
+                </div>
+
+                <div class="flex flex-col lg:flex-row gap-6 flex-1 min-h-0">
+                    <!-- Left: Scanner Area -->
+                    <div class="w-full lg:w-1/3 flex flex-col gap-4">
+                        <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 flex flex-col items-center">
+                            <div class="w-12 h-12 bg-blue-50 text-secondary rounded-full flex items-center justify-center text-xl mb-4">
+                                <i class="fas fa-camera"></i>
+                            </div>
+                            <h3 class="font-bold text-gray-900 mb-4">QR Code Scanner</h3>
+                            
+                            <div id="qr-reader-container" class="mb-5 hidden w-full rounded-xl overflow-hidden border-2 border-dashed border-secondary/30 bg-gray-50">
+                                <div id="qr-reader" class="w-full"></div>
+                            </div>
+                            
+                            <button id="btn-start-camera" onclick="startScanner()" class="bg-primary text-white w-full py-3 rounded-xl hover:bg-gray-800 transition-all font-semibold shadow-md flex justify-center items-center gap-2">
+                                <i class="fas fa-video"></i> Start Live Camera
+                            </button>
+
+                            <button id="btn-stop-camera" onclick="stopScanner()" class="bg-red-50 text-red-600 border border-red-200 w-full py-3 rounded-xl hover:bg-red-100 transition-all font-semibold hidden flex justify-center items-center gap-2">
+                                <i class="fas fa-stop"></i> Stop Camera
+                            </button>
+
+                            <div class="w-full flex items-center gap-3 my-6">
+                                <div class="h-px bg-gray-200 flex-1"></div>
+                                <span class="text-xs text-gray-400 font-medium uppercase">OR MANUAL ENTRY</span>
+                                <div class="h-px bg-gray-200 flex-1"></div>
+                            </div>
+                            
+                            <div class="text-left w-full relative">
+                                <div class="relative">
+                                    <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
+                                    <input type="text" id="manual-scan-input" placeholder="Search name or ID..." class="w-full bg-gray-50 border border-gray-200 rounded-xl pl-10 pr-4 py-3 outline-none focus:bg-white focus:ring-2 focus:ring-secondary focus:border-transparent transition-all" oninput="handleSearchTyping()">
+                                </div>
+                                <div id="live-search-results" class="absolute z-20 w-full bg-white border border-gray-200 rounded-xl shadow-2xl mt-2 max-h-64 overflow-y-auto hidden"></div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Right: Attendance Table -->
+                    <div class="w-full lg:w-2/3 bg-white rounded-2xl shadow-sm border border-gray-200 flex flex-col overflow-hidden min-h-[400px]">
+                        <div class="p-5 border-b border-gray-100 bg-white flex justify-between items-center z-20">
+                            <h3 class="font-bold text-gray-900">Live Attendance Log</h3>
+                            <span class="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 flex items-center gap-1"><i class="fas fa-circle text-[8px] animate-pulse"></i> Syncing</span>
+                        </div>
+                        <div class="flex-1 overflow-x-auto overflow-y-auto">
+                            <table class="w-full text-left border-collapse min-w-[700px]">
+                                <thead class="sticky top-0 z-10">
+                                    <tr class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[11px] font-bold border-b border-gray-200 shadow-sm">
+                                        <th class="p-4 pl-6">Employee</th>
+                                        <th class="p-4 text-center">8:00 AM (In)</th>
+                                        <th class="p-4 text-center">12:00 PM (Out)</th>
+                                        <th class="p-4 text-center">1:00 PM (In)</th>
+                                        <th class="p-4 text-center">5:00 PM (Out)</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="attendance-table-body" class="divide-y divide-gray-100 text-sm bg-white"></tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+        </main>
+    </div>
+
+    <!-- MODALS -->
+
+    <!-- Generate ID Modal -->
+    <div id="modal-generate-id" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center max-w-sm w-full fade-in">
+            <div class="w-full flex justify-between items-center mb-4">
+                <h3 class="font-bold text-gray-800">Preview ID Card</h3>
+                <button onclick="closeModal('modal-generate-id')" class="text-gray-400 hover:text-gray-800 transition-colors w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div id="id-card-element" class="id-card scale-95 sm:scale-100 transform origin-top">
+                <div class="id-card-header">EMPLOYEE ID</div>
+                <div class="id-photo-placeholder" id="card-photo-container">
+                    <i class="fas fa-user"></i>
+                </div>
+                <h2 id="card-name" class="mt-4 font-bold text-lg text-gray-900 text-center px-4 leading-tight">Name</h2>
+                <p id="card-pos" class="text-xs text-secondary font-bold uppercase tracking-wider text-center px-4 mt-1">Position</p>
+                <p id="card-office" class="text-[10px] text-gray-500 text-center px-4 mt-1 leading-tight line-clamp-2">Office</p>
+                
+                <div class="mt-auto w-full flex flex-col items-center pb-5">
+                    <div id="card-qrcode" class="p-2 bg-white rounded-lg shadow-sm border border-gray-100 mb-2"></div>
+                    <p id="card-id" class="text-[10px] text-gray-400 font-mono tracking-widest"><span></span></p>
+                </div>
+            </div>
+
+            <div class="mt-6 w-full">
+                <button onclick="downloadIDCard()" class="w-full bg-accent text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/30 font-bold flex justify-center items-center gap-2">
+                    <i class="fas fa-download"></i> Save as PNG
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Create Event Modal -->
+    <div id="modal-create-event" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900 flex items-center gap-2"><i class="fas fa-calendar-plus text-secondary"></i> Create Event</h3>
+                <button onclick="closeModal('modal-create-event')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleCreateEvent(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Event Name</label>
+                    <input type="text" id="ce-name" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Description</label>
+                    <textarea id="ce-desc" rows="2" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm resize-none"></textarea>
+                </div>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Location</label>
+                        <input type="text" id="ce-loc" list="location-suggestions" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                        <datalist id="location-suggestions">
+                            <option value="Grand Ballroom, Manila Hotel">
+                            <option value="Main Convention Center">
+                            <option value="Regional Office Auditorium">
+                            <option value="Virtual (Zoom / MS Teams)">
+                            <option value="Training Room A">
+                        </datalist>
+                    </div>
+                    <div class="col-span-2 sm:col-span-1">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Capacity</label>
+                        <input type="number" id="ce-cap" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Start Date</label>
+                        <input type="date" id="ce-start" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">End Date</label>
+                        <input type="date" id="ce-end" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
+                    <button type="button" onclick="closeModal('modal-create-event')" class="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors">Cancel</button>
+                    <button type="submit" id="btn-save-event" class="bg-secondary text-white px-6 py-2.5 rounded-xl hover:bg-blue-600 font-bold text-sm shadow-md transition-all">Save Event</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Create Session Modal -->
+    <div id="modal-create-session" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900">New Session</h3>
+                <button onclick="closeModal('modal-create-session')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleCreateSession(event)" class="p-6 space-y-4">
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Session Name</label>
+                    <input type="text" id="cs-name" placeholder="e.g. Day 1, Morning Training" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Date</label>
+                    <input type="date" id="cs-date" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-secondary text-sm">
+                </div>
+                <button type="submit" id="btn-save-session" class="w-full bg-secondary text-white py-3 rounded-xl hover:bg-blue-600 font-bold text-sm shadow-md transition-all mt-2">Create Session</button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Add Employee Modal -->
+    <div id="modal-add-employee" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900 flex items-center gap-2"><i class="fas fa-user-plus text-primary"></i> Register Employee</h3>
+                <button onclick="closeModal('modal-add-employee')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleAddEmployee(event)" class="p-6 space-y-4">
+                <div class="flex items-center gap-4 border-b border-gray-100 pb-4 mb-2">
+                    <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 overflow-hidden relative border border-gray-200" id="photo-preview">
+                        <i class="fas fa-camera text-xl"></i>
+                        <img id="photo-img-preview" class="absolute inset-0 w-full h-full object-cover hidden">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Employee Photo (Optional)</label>
+                        <input type="file" id="emp-photo" accept="image/*" onchange="handleImageUpload(event, 'photo-img-preview', 'emp-photo-base64')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-blue-50 file:text-secondary hover:file:bg-blue-100">
+                        <input type="hidden" id="emp-photo-base64">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Employee ID</label>
+                        <input type="text" id="emp-id" placeholder="EMP-001" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary uppercase text-sm font-mono">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Full Name</label>
+                        <input type="text" id="emp-name" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Position</label>
+                        <input type="text" id="emp-pos" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Email</label>
+                        <input type="email" id="emp-email" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Office Assignment</label>
+                        <select id="emp-office" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                            <option value="" disabled selected>Select Division</option>
+                            <option value="Policy and Plans Division">Policy and Plans Division</option>
+                            <option value="Protective Services Division">Protective Services Division</option>
+                            <option value="Promotive Services Division">Promotive Services Division</option>
+                            <option value="Disaster Response Management Division">Disaster Response Management Division</option>
+                            <option value="Financial Management Division">Financial Management Division</option>
+                            <option value="Administrative Division">Administrative Division</option>
+                            <option value="Human Resource Management and Development Division">Human Resource Management and Development Division</option>
+                            <option value="Innovation Division">Innovation Division</option>
+                            <option value="Office of the Regional Director">Office of the Regional Director</option>
+                            <option value="Pantawid Pamilyang Pilipino Program Division">Pantawid Pamilyang Pilipino Program Division</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Phone Number</label>
+                        <input type="text" id="emp-phone" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
+                    <button type="button" onclick="closeModal('modal-add-employee')" class="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors">Cancel</button>
+                    <button type="submit" id="btn-save-emp" class="bg-primary text-white px-6 py-2.5 rounded-xl hover:bg-gray-800 font-bold text-sm shadow-md transition-all">Save Employee</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Edit Employee Modal -->
+    <div id="modal-edit-employee" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900 flex items-center gap-2"><i class="fas fa-user-edit text-amber-500"></i> Edit Employee</h3>
+                <button onclick="closeModal('modal-edit-employee')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleEditEmployee(event)" class="p-6 space-y-4">
+                <div class="flex items-center gap-4 border-b border-gray-100 pb-4 mb-2">
+                    <div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 overflow-hidden relative border border-gray-200" id="edit-photo-preview">
+                        <i class="fas fa-camera text-xl"></i>
+                        <img id="edit-photo-img-preview" class="absolute inset-0 w-full h-full object-cover hidden">
+                    </div>
+                    <div class="flex-1">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Update Photo</label>
+                        <input type="file" id="edit-emp-photo" accept="image/*" onchange="handleImageUpload(event, 'edit-photo-img-preview', 'edit-emp-photo-base64')" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-amber-50 file:text-amber-600 hover:file:bg-amber-100">
+                        <input type="hidden" id="edit-emp-photo-base64">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Employee ID</label>
+                        <input type="text" id="edit-emp-id" readonly class="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2.5 outline-none text-sm font-mono text-gray-500 cursor-not-allowed" title="ID cannot be changed after registration">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Full Name</label>
+                        <input type="text" id="edit-emp-name" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Position</label>
+                        <input type="text" id="edit-emp-pos" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Email</label>
+                        <input type="email" id="edit-emp-email" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Office Assignment</label>
+                        <select id="edit-emp-office" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                            <option value="" disabled>Select Division</option>
+                            <option value="Policy and Plans Division">Policy and Plans Division</option>
+                            <option value="Protective Services Division">Protective Services Division</option>
+                            <option value="Promotive Services Division">Promotive Services Division</option>
+                            <option value="Disaster Response Management Division">Disaster Response Management Division</option>
+                            <option value="Financial Management Division">Financial Management Division</option>
+                            <option value="Administrative Division">Administrative Division</option>
+                            <option value="Human Resource Management and Development Division">Human Resource Management and Development Division</option>
+                            <option value="Innovation Division">Innovation Division</option>
+                            <option value="Office of the Regional Director">Office of the Regional Director</option>
+                            <option value="Pantawid Pamilyang Pilipino Program Division">Pantawid Pamilyang Pilipino Program Division</option>
+                        </select>
+                    </div>
+                    <div class="col-span-1 sm:col-span-2">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Phone Number</label>
+                        <input type="text" id="edit-emp-phone" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                    </div>
+                </div>
+                <div class="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
+                    <button type="button" onclick="closeModal('modal-edit-employee')" class="px-5 py-2.5 rounded-xl text-gray-600 hover:bg-gray-100 font-medium text-sm transition-colors">Cancel</button>
+                    <button type="submit" id="btn-update-emp" class="bg-amber-500 text-white px-6 py-2.5 rounded-xl hover:bg-amber-600 font-bold text-sm shadow-md transition-all">Update Details</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Import CSV Modal -->
+    <div id="modal-import-csv" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-sm overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50">
+                <h3 class="font-bold text-lg text-gray-900"><i class="fas fa-file-csv text-accent"></i> Import Employees</h3>
+                <button onclick="closeModal('modal-import-csv')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            <div class="p-6 space-y-4">
+                <p class="text-xs text-gray-500">Upload a CSV file to bulk import employees. Expected column order:<br> <code class="bg-gray-100 px-1 rounded block mt-1">ID, Name, Position, Office, Email, Phone</code></p>
+                <input type="file" id="csv-file-input" accept=".csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-accent hover:file:bg-emerald-100">
+                <button id="btn-import-csv" onclick="handleCSVImport()" class="w-full bg-accent text-white py-3 rounded-xl hover:bg-emerald-600 font-bold text-sm shadow-md transition-all mt-2 flex justify-center items-center gap-2">
+                    <i class="fas fa-upload"></i> Process CSV
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Broadcast Modal -->
+    <div id="modal-broadcast" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden fade-in">
+            <div class="px-6 py-4 bg-amber-500 flex justify-between items-center">
+                <h3 class="font-bold text-lg text-white flex items-center gap-2"><i class="fas fa-bullhorn"></i> Broadcast Message</h3>
+                <button onclick="closeModal('modal-broadcast')" class="text-amber-100 hover:text-white"><i class="fas fa-times"></i></button>
+            </div>
+            <form onsubmit="handleBroadcast(event)" class="p-6 space-y-4">
+                <p class="text-sm text-gray-600">Send a real-time notification to all participants regarding this event.</p>
+                
+                <!-- Quick Templates -->
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Quick Templates</label>
+                    <div class="flex flex-wrap gap-2 mb-2">
+                        <button type="button" onclick="setBroadcastMsg('☕ Good morning! Breakfast is now being served. Please proceed to the dining hall.')" class="px-3 py-1.5 bg-amber-50 text-amber-700 hover:bg-amber-100 rounded-lg text-xs font-bold border border-amber-200 transition-colors">☕ Breakfast</button>
+                        <button type="button" onclick="setBroadcastMsg('🍱 Hello! Lunch is now available. Enjoy your meal!')" class="px-3 py-1.5 bg-blue-50 text-blue-700 hover:bg-blue-100 rounded-lg text-xs font-bold border border-blue-200 transition-colors">🍱 Lunch</button>
+                        <button type="button" onclick="setBroadcastMsg('🍽️ Good evening! Dinner is now served. Please join us at the dining area.')" class="px-3 py-1.5 bg-emerald-50 text-emerald-700 hover:bg-emerald-100 rounded-lg text-xs font-bold border border-emerald-200 transition-colors">🍽️ Dinner</button>
+                        <button type="button" onclick="setBroadcastMsg('')" class="px-3 py-1.5 bg-gray-50 text-gray-700 hover:bg-gray-100 rounded-lg text-xs font-bold border border-gray-200 transition-colors">📝 Clear</button>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Message</label>
+                    <textarea id="broadcast-msg" required rows="3" placeholder="Write your notification message here..." class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm resize-none"></textarea>
+                </div>
+                
+                <div>
+                    <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Action Button Link (Optional)</label>
+                    <input type="url" id="broadcast-link" placeholder="e.g., https://forms.gle/..." class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                </div>
+
+                <div class="pt-2">
+                    <button type="submit" id="btn-send-broadcast" class="w-full bg-amber-500 text-white py-3 rounded-xl hover:bg-amber-600 font-bold text-sm shadow-md shadow-amber-500/20 transition-all flex justify-center items-center gap-2">
+                        <i class="fas fa-paper-plane"></i> Send Notification
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT LOGIC -->
+    <script>
+        // ======= GOOGLE APPS SCRIPT WEB APP LINK =======
+        const SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbw1y_Wer38eK9U0hhT20qKk9dATG12_AbRx5GQ7csEpvQLn1tH9lHj8qKnNyIXmw7at/exec';
+
+        let appState = { events: [], employees: [], sessions: [], attendance: [] };
+        let activeEventId = null;
+        let activeSessionId = null;
+        let qrCodeInstance = null;
+        let html5QrcodeScanner = null;
+        let isProcessingScan = false;
+        let isCameraOn = false;
+
+        // --- FETCH WRAPPER FOR EXTERNAL HOSTING ---
+        async function gasRequest(action, payload = null) {
+            const url = SCRIPT_URL + '?action=' + action;
+            const options = {
+                method: payload ? 'POST' : 'GET'
+            };
+
+            if (payload) {
+                // Sent as text/plain by default to avoid CORS preflight errors in Apps Script
+                options.body = JSON.stringify(payload); 
+            }
+
+            try {
+                const response = await fetch(url, options);
+                const data = await response.json();
+                
+                if (data.status === 'error') {
+                    throw new Error(data.message);
+                }
+                return data.data;
+            } catch (err) {
+                console.error("GAS Request Error:", err);
+                throw err;
+            }
+        }
+
+        // --- BUTTON LOAD STATE HELPER ---
+        function setButtonLoading(btnId, isLoading, defaultText = '', icon = '') {
+            const btn = document.getElementById(btnId);
+            if(!btn) return;
+            if (isLoading) {
+                btn.classList.add('btn-loading');
+                btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Processing...`;
+            } else {
+                btn.classList.remove('btn-loading');
+                btn.innerHTML = icon ? `<i class="fas ${icon}"></i> ${defaultText}` : defaultText;
+            }
+        }
+
+        // --- AUTH AND LOAD ---
+        window.onload = () => {
+            startClock();
+            
+            // Connect to Google Apps Script Backend
+            gasRequest('getAppData')
+                .then(data => {
+                    appState = data;
+                    document.getElementById('loading-overlay').style.display = 'none';
+                    checkAuthAndRoute();
+                })
+                .catch(err => {
+                    document.getElementById('loading-overlay').innerHTML = `
+                        <i class="fas fa-exclamation-triangle text-4xl text-red-500 mb-4"></i>
+                        <h2 class="text-xl font-bold text-gray-800 tracking-tight">Connection Failed</h2>
+                        <p class="text-gray-500 text-sm mt-2 text-center px-6">Could not reach the database. Please check the Web App URL or CORS settings in Apps Script.</p>
+                    `;
+                });
+        };
+
+        function checkAuthAndRoute() {
+            if (localStorage.getItem('isLoggedIn') === 'true') {
+                document.getElementById('view-login').classList.remove('flex');
+                document.getElementById('view-login').classList.add('hidden');
+                document.getElementById('app-wrapper').classList.remove('hidden');
+                navigateTo('dashboard');
+            } else {
+                document.getElementById('view-login').classList.remove('hidden');
+                document.getElementById('view-login').classList.add('flex');
+            }
+        }
+
+        function handleLogin(e) {
+            e.preventDefault();
+            setButtonLoading('btn-login', true);
+            setTimeout(() => {
+                const u = document.getElementById('login-user').value;
+                const p = document.getElementById('login-pass').value;
+                setButtonLoading('btn-login', false, 'Sign In', 'fa-arrow-right');
+                
+                if(u === 'admin' && p === 'password') {
+                    localStorage.setItem('isLoggedIn', 'true');
+                    const loginView = document.getElementById('view-login');
+                    loginView.classList.remove('flex');
+                    loginView.classList.add('hidden');
+                    
+                    const appWrapper = document.getElementById('app-wrapper');
+                    appWrapper.classList.remove('hidden');
+                    
+                    navigateTo('dashboard');
+                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Signed in successfully', showConfirmButton: false, timer: 2000 });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'Oops...', text: 'Invalid credentials. Demo: admin/password' });
+                }
+            }, 600); 
+        }
+
+        function logout() {
+            Swal.fire({
+                title: 'Sign out?',
+                text: "You will return to the login screen.",
+                icon: 'warning',
+                showCancelButton: true,
+                confirmButtonColor: '#0f172a',
+                cancelButtonColor: '#e2e8f0',
+                cancelButtonText: '<span class="text-gray-800">Cancel</span>',
+                confirmButtonText: 'Yes, Sign Out'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    localStorage.removeItem('isLoggedIn');
+                    document.getElementById('app-wrapper').classList.add('hidden');
+                    const loginView = document.getElementById('view-login');
+                    loginView.classList.remove('hidden');
+                    loginView.classList.add('flex');
+                    if(html5QrcodeScanner) stopScanner();
+                }
+            });
+        }
+
+        function openModal(id) { document.getElementById(id).classList.replace('hidden', 'flex'); }
+        function closeModal(id) { document.getElementById(id).classList.replace('flex', 'hidden'); }
+
+        function navigateTo(view, param = null) {
+            if (view !== 'attendance') stopScanner();
+
+            ['view-dashboard', 'view-employees', 'view-event-detail', 'view-attendance'].forEach(id => {
+                document.getElementById(id).classList.add('hidden');
+                document.getElementById(id).classList.remove('flex'); 
+            });
+
+            if(view === 'dashboard') {
+                document.getElementById('view-dashboard').classList.remove('hidden');
+                renderEvents();
+            } else if (view === 'employees') {
+                document.getElementById('view-employees').classList.remove('hidden');
+                renderEmployees();
+            } else if (view === 'event-detail') {
+                activeEventId = param;
+                document.getElementById('view-event-detail').classList.remove('hidden');
+                renderEventDetails();
+            } else if (view === 'attendance') {
+                activeSessionId = param;
+                const attView = document.getElementById('view-attendance');
+                attView.classList.remove('hidden');
+                attView.classList.add('flex');
+                renderAttendanceSession();
+            }
+        }
+
+        function startClock() {
+            setInterval(() => {
+                const now = new Date();
+                const clockObj = document.getElementById('live-clock');
+                if(clockObj) {
+                    clockObj.innerText = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit', second: '2-digit' });
+                    document.getElementById('live-date').innerText = now.toLocaleDateString('en-US', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
+                }
+            }, 1000);
+        }
+
+        // --- RENDERERS ---
+        function renderEvents() {
+            const filter = document.getElementById('filter-status').value;
+            const search = document.getElementById('filter-search').value.toLowerCase();
+            const grid = document.getElementById('events-grid');
+            grid.innerHTML = '';
+            
+            const filtered = appState.events.filter(e => 
+                (filter === 'all' || e.status === filter) && 
+                (e.name.toLowerCase().includes(search) || e.loc.toLowerCase().includes(search))
+            );
+
+            if(filtered.length === 0) {
+                grid.innerHTML = `<div class="col-span-full text-center py-12 text-gray-400 bg-white rounded-2xl border border-dashed border-gray-300"><i class="fas fa-calendar-times text-4xl mb-3"></i><p>No events found.</p></div>`;
+                return;
+            }
+
+            filtered.forEach(evt => {
+                const isOngoing = evt.status === 'ongoing';
+                const statusColor = isOngoing ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200';
+                const dotColor = isOngoing ? 'bg-emerald-500 animate-pulse' : 'bg-gray-400';
+
+                grid.innerHTML += `
+                    <div class="bg-white rounded-2xl shadow-sm border border-gray-200 p-6 hover:shadow-lg hover:border-blue-200 transition-all cursor-pointer flex flex-col h-full group" onclick="navigateTo('event-detail', '${evt.id}')">
+                        <div class="flex justify-between items-start mb-4">
+                            <span class="text-[10px] px-2.5 py-1 rounded-full font-bold uppercase border ${statusColor} flex items-center gap-1.5"><div class="w-1.5 h-1.5 rounded-full ${dotColor}"></div>${evt.status}</span>
+                            <div class="w-8 h-8 rounded-full bg-gray-50 flex items-center justify-center text-gray-400 group-hover:bg-blue-50 group-hover:text-secondary transition-colors"><i class="fas fa-chevron-right text-xs"></i></div>
+                        </div>
+                        <h3 class="font-extrabold text-xl text-gray-900 leading-tight mb-2 group-hover:text-secondary transition-colors">${evt.name}</h3>
+                        <p class="text-sm text-gray-500 mb-6 line-clamp-2 leading-relaxed">${evt.desc}</p>
+                        <div class="mt-auto space-y-2.5 text-xs font-medium text-gray-600">
+                            <div class="flex items-start gap-2"><i class="fas fa-map-marker-alt w-4 text-center text-gray-400 mt-0.5"></i> <span>${evt.loc}</span></div>
+                            <div class="flex items-center gap-2"><i class="fas fa-calendar-alt w-4 text-center text-gray-400"></i> <span>${new Date(evt.start).toLocaleDateString()} &mdash; ${new Date(evt.end).toLocaleDateString()}</span></div>
+                        </div>
+                    </div>`;
+            });
+        }
+
+        function renderEventDetails() {
+            const evt = appState.events.find(e => e.id === activeEventId);
+            if(!evt) return;
+            document.getElementById('det-event-name').innerText = evt.name;
+            document.getElementById('det-event-desc').innerText = evt.desc;
+            document.getElementById('det-event-loc').innerText = evt.loc;
+            document.getElementById('det-event-dates').innerText = `${new Date(evt.start).toLocaleDateString()} to ${new Date(evt.end).toLocaleDateString()}`;
+            
+            const fullTemplate = evt.emailTemplate || '';
+            const parts = fullTemplate.split('<--LINK-->');
+            document.getElementById('email-template-input').value = parts[0];
+            document.getElementById('email-link-input').value = parts[1] || '';
+            
+            const badge = document.getElementById('det-event-status');
+            badge.innerText = evt.status;
+            badge.className = `px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${evt.status === 'ongoing' ? 'bg-emerald-50 text-emerald-700 border-emerald-200' : 'bg-gray-100 text-gray-600 border-gray-200'}`;
+
+            const sessionsList = document.getElementById('sessions-list');
+            sessionsList.innerHTML = '';
+            
+            const evSessions = appState.sessions.filter(s => s.eventId === activeEventId);
+            if(evSessions.length === 0) {
+                 sessionsList.innerHTML = `<div class="text-sm text-gray-400 p-6 bg-gray-50/50 rounded-xl border border-dashed border-gray-200 text-center">No attendance sessions created yet.</div>`;
+            } else {
+                evSessions.forEach(sess => {
+                    sessionsList.innerHTML += `
+                        <div class="flex justify-between items-center bg-white border border-gray-200 p-4 rounded-xl hover:shadow-md hover:border-secondary transition-all group cursor-pointer" onclick="navigateTo('attendance', '${sess.id}')">
+                            <div class="flex items-center gap-4">
+                                <div class="w-10 h-10 rounded-lg bg-blue-50 text-secondary flex items-center justify-center group-hover:bg-secondary group-hover:text-white transition-colors"><i class="fas fa-clipboard-list"></i></div>
+                                <div>
+                                    <h4 class="font-bold text-gray-900 text-sm sm:text-base">${sess.name}</h4>
+                                    <p class="text-xs text-gray-500 font-medium"><i class="far fa-calendar-alt mr-1"></i> ${new Date(sess.date).toLocaleDateString()}</p>
+                                </div>
+                            </div>
+                            <div class="flex items-center">
+                                <button onclick="event.stopPropagation(); printSession('${sess.id}')" class="text-gray-400 hover:text-primary bg-gray-50 hover:bg-gray-100 border border-gray-200 p-2 rounded-lg text-sm transition-colors mr-3" title="Print Attendance"><i class="fas fa-print"></i></button>
+                                <button class="text-secondary bg-blue-50 p-2 rounded-lg text-sm group-hover:bg-secondary group-hover:text-white transition-colors"><i class="fas fa-arrow-right"></i></button>
+                            </div>
+                        </div>`;
+                });
+            }
+        }
+
+        function renderEmployees() {
+            const search = document.getElementById('emp-search').value.toLowerCase();
+            const tbody = document.getElementById('employee-table-body');
+            tbody.innerHTML = '';
+            
+            const filtered = appState.employees.filter(emp => emp.name.toLowerCase().includes(search) || emp.id.toLowerCase().includes(search));
+            
+            if(filtered.length === 0) {
+                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-400">No employees found in directory.</td></tr>`;
+                return;
+            }
+
+            filtered.forEach(emp => {
+                const photoHtml = emp.photo 
+                    ? `<img src="${emp.photo}" class="w-10 h-10 rounded-full object-cover border border-gray-200 shadow-sm">` 
+                    : `<div class="w-10 h-10 rounded-full bg-gray-100 border border-gray-200 text-gray-400 flex items-center justify-center text-sm"><i class="fas fa-user"></i></div>`;
+
+                tbody.innerHTML += `
+                    <tr class="hover:bg-blue-50/50 transition-colors group">
+                        <td class="p-4 pl-6">${photoHtml}</td>
+                        <td class="p-4">
+                            <div class="font-bold text-gray-900 text-sm">${emp.name}</div>
+                            <div class="font-mono text-[10px] text-secondary mt-0.5 tracking-wider">${emp.id}</div>
+                        </td>
+                        <td class="p-4">
+                            <div class="text-sm font-medium text-gray-700">${emp.pos}</div>
+                            <div class="text-xs text-gray-500 truncate max-w-[200px]" title="${emp.office}">${emp.office}</div>
+                        </td>
+                        <td class="p-4 text-gray-600 text-xs space-y-1">
+                            <div class="flex items-center gap-1.5"><i class="fas fa-envelope text-gray-400"></i> ${emp.email}</div>
+                            <div class="flex items-center gap-1.5"><i class="fas fa-phone text-gray-400"></i> ${emp.phone}</div>
+                        </td>
+                        <td class="p-4 text-center">
+                            <div class="flex items-center justify-center gap-2">
+                                <button onclick="openEditModal('${emp.id}')" class="text-amber-500 hover:text-white bg-amber-50 hover:bg-amber-500 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Edit Employee">
+                                    <i class="fas fa-edit"></i>
+                                </button>
+                                <button onclick="openIDModal('${emp.id}')" class="text-secondary hover:text-white bg-blue-50 hover:bg-secondary px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Generate ID">
+                                    <i class="fas fa-id-badge"></i> ID Card
+                                </button>
+                            </div>
+                        </td>
+                    </tr>`;
+            });
+        }
+
+        function renderAttendanceSession() {
+            const sess = appState.sessions.find(s => s.id === activeSessionId);
+            if (sess) {
+                document.getElementById('att-session-name').innerText = sess.name;
+                renderAttendanceTable();
+            }
+        }
+
+        function renderAttendanceTable() {
+            const tbody = document.getElementById('attendance-table-body');
+            tbody.innerHTML = '';
+            const logs = appState.attendance.filter(a => a.sessionId === activeSessionId);
+            
+            if(logs.length === 0) {
+                 tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-400">No attendance logs yet.</td></tr>`;
+                 return;
+            }
+
+            logs.reverse().forEach(log => {
+                const emp = appState.employees.find(e => e.id === log.empId) || { name: 'Unknown', pos: 'Unknown', office: 'Unknown' };
+                const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3 text-gray-400 text-xs"><i class="fas fa-user"></i></div>`;
+                
+                tbody.innerHTML += `
+                    <tr class="hover:bg-gray-50 transition-colors">
+                        <td class="p-4 pl-6 flex items-center">
+                            ${photoHtml}
+                            <div>
+                                <div class="font-bold text-gray-900 text-sm">${emp.name}</div>
+                                <div class="text-[10px] font-mono text-gray-400">${log.empId}</div>
+                            </div>
+                        </td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="${log.amIn ? 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.amIn || '-'}</span></td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="${log.amOut ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.amOut || '-'}</span></td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="${log.pmIn ? 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.pmIn || '-'}</span></td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="${log.pmOut ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.pmOut || '-'}</span></td>
+                    </tr>`;
+            });
+        }
+
+        // --- PRINT LOGIC ---
+        function printSession(sessionId) {
+            const sess = appState.sessions.find(s => s.id === sessionId);
+            const evt = appState.events.find(e => e.id === sess.eventId);
+            const logs = appState.attendance.filter(a => a.sessionId === sessionId);
+
+            let tbodyHtml = '';
+            
+            if (logs.length === 0) {
+                tbodyHtml = `<tr><td colspan="9" style="text-align: center; padding: 15px; color: #666;">No attendance recorded for this session yet.</td></tr>`;
+            } else {
+                logs.forEach(log => {
+                    const emp = appState.employees.find(e => e.id === log.empId) || {};
+                    tbodyHtml += `
+                        <tr>
+                            <td style="border: 1px solid #000; padding: 6px;">${emp.name || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px;">${emp.pos || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px;">${emp.office || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px;">${emp.email || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px;">${emp.phone || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.amIn || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.amOut || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.pmIn || ''}</td>
+                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.pmOut || ''}</td>
+                        </tr>
+                    `;
+                });
+            }
+
+            const printHtml = `
+                <div style="font-family: Arial, sans-serif; padding: 10px;">
+                    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 15px;">
+                        <div style="text-align: center;">
+                            <h2 style="margin: 0; font-size: 15pt; font-weight: bold; text-transform: uppercase;">Department of Social Welfare and Development Region 10</h2>
+                            <p style="margin: 3px 0 0 0; font-size: 11pt;">Masterson Avenue Cagayan de Oro City</p>
+                        </div>
+                    </div>
+                    <div style="text-align: center; margin-bottom: 25px;">
+                        <h1 style="margin: 0; font-size: 18pt; font-weight: bold;">${evt.name}</h1>
+                        <p style="margin: 5px 0; font-size: 11pt;">Capacity: <strong>${evt.cap}</strong> &nbsp;|&nbsp; Location: <strong>${evt.loc}</strong></p>
+                        <p style="margin: 10px 0 0 0; font-size: 12pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} (${new Date(sess.date).toLocaleDateString()})</p>
+                    </div>
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+                        <thead>
+                            <tr style="background-color: #f1f5f9; -webkit-print-color-adjust: exact;">
+                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Name</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Position</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Office</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Email</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Contact Number</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time In</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time Out</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time In</th>
+                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time Out</th>
+                            </tr>
+                        </thead>
+                        <tbody>${tbodyHtml}</tbody>
+                    </table>
+                </div>
+            `;
+            document.getElementById('print-container').innerHTML = printHtml;
+            setTimeout(() => { window.print(); }, 300);
+        }
+
+        function handleImageUpload(event, previewId, base64Id) {
+            const file = event.target.files[0];
+            if(!file) return;
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const img = new Image();
+                img.onload = () => {
+                    const canvas = document.createElement('canvas');
+                    const ctx = canvas.getContext('2d');
+                    canvas.width = 200; canvas.height = 200;
+                    const size = Math.min(img.width, img.height);
+                    const sx = (img.width - size) / 2;
+                    const sy = (img.height - size) / 2;
+                    ctx.drawImage(img, sx, sy, size, size, 0, 0, 200, 200);
+                    
+                    const base64Str = canvas.toDataURL('image/jpeg', 0.8);
+                    document.getElementById(base64Id).value = base64Str;
+                    
+                    const previewImg = document.getElementById(previewId);
+                    previewImg.src = base64Str;
+                    previewImg.classList.remove('hidden');
+                };
+                img.src = e.target.result;
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleCSVImport() {
+            const fileInput = document.getElementById('csv-file-input');
+            const file = fileInput.files[0];
+            if (!file) {
+                Swal.fire({ icon: 'warning', title: 'No File', text: 'Please select a CSV file first.' });
+                return;
+            }
+
+            setButtonLoading('btn-import-csv', true);
+            
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const text = e.target.result;
+                const lines = text.split('\n');
+                let count = 0;
+
+                for (let i = 0; i < lines.length; i++) {
+                    const line = lines[i].trim();
+                    if (!line) continue;
+                    const cols = line.split(',');
+                    if (cols.length >= 6) {
+                        const id = cols[0].replace(/['"]/g, '').trim().toUpperCase();
+                        if (id.toLowerCase() === 'id') continue; 
+                        
+                        if(!appState.employees.find(emp => emp.id === id)) {
+                            appState.employees.push({
+                                id: id,
+                                name: cols[1].replace(/['"]/g, '').trim(),
+                                pos: cols[2].replace(/['"]/g, '').trim(),
+                                office: cols[3].replace(/['"]/g, '').trim(),
+                                email: cols[4].replace(/['"]/g, '').trim(),
+                                phone: cols[5].replace(/['"]/g, '').trim(),
+                                photo: ''
+                            });
+                            count++;
+                        }
+                    }
+                }
+
+                setTimeout(() => {
+                    setButtonLoading('btn-import-csv', false, 'Process CSV', 'fa-upload');
+                    closeModal('modal-import-csv');
+                    fileInput.value = '';
+                    renderEmployees();
+                    Swal.fire({ icon: 'success', title: 'Import Complete', text: `Successfully added ${count} new employees.` });
+                }, 500);
+            };
+            reader.readAsText(file);
+        }
+
+        // --- CRUD ACTIONS & OTHER LOGIC (Refactored for Fetch) ---
+        function handleCreateEvent(e) {
+            e.preventDefault();
+            setButtonLoading('btn-save-event', true);
+            const newEvent = {
+                id: 'EVT-' + Math.floor(Math.random() * 10000),
+                name: document.getElementById('ce-name').value, desc: document.getElementById('ce-desc').value,
+                loc: document.getElementById('ce-loc').value, cap: document.getElementById('ce-cap').value,
+                start: document.getElementById('ce-start').value, end: document.getElementById('ce-end').value,
+                status: 'ongoing', emailTemplate: 'Hello {name},\n\nThank you for attending {event}.'
+            };
+            
+            gasRequest('saveEvent', newEvent).then(() => {
+                appState.events.push(newEvent); 
+                closeModal('modal-create-event'); 
+                renderEvents(); 
+                setButtonLoading('btn-save-event', false, 'Save Event'); 
+                Swal.fire({toast:true, position:'top-end', icon:'success', title:'Event created', showConfirmButton:false, timer:1500});
+            }).catch(err => {
+                setButtonLoading('btn-save-event', false, 'Save Event');
+                Swal.fire({icon: 'error', title: 'Save Failed', text: err.message});
+            });
+        }
+
+        function toggleEventStatus() {
+            const evt = appState.events.find(e => e.id === activeEventId);
+            if(!evt) return;
+            
+            // Toggle local state temporarily
+            evt.status = evt.status === 'ongoing' ? 'finished' : 'ongoing';
+            renderEventDetails(); 
+            
+            gasRequest('updateEventStatus', { id: evt.id, status: evt.status }).then(() => {
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Event marked as ${evt.status}`, showConfirmButton: false, timer: 1500 });
+            }).catch(err => {
+                // Revert on fail
+                evt.status = evt.status === 'ongoing' ? 'finished' : 'ongoing';
+                renderEventDetails();
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Failed to sync status`, showConfirmButton: false, timer: 1500 });
+            });
+        }
+
+        function handleAddEmployee(e) {
+            e.preventDefault();
+            setButtonLoading('btn-save-emp', true);
+            const emp = {
+                id: document.getElementById('emp-id').value.toUpperCase(), name: document.getElementById('emp-name').value,
+                pos: document.getElementById('emp-pos').value, office: document.getElementById('emp-office').value,
+                email: document.getElementById('emp-email').value, phone: document.getElementById('emp-phone').value,
+                photo: document.getElementById('emp-photo-base64').value
+            };
+            
+            gasRequest('saveEmployee', emp).then(() => {
+                appState.employees.push(emp); 
+                closeModal('modal-add-employee'); 
+                renderEmployees(); 
+                setButtonLoading('btn-save-emp', false, 'Save Employee');
+                e.target.reset(); 
+                document.getElementById('photo-img-preview').classList.add('hidden');
+            }).catch(err => {
+                setButtonLoading('btn-save-emp', false, 'Save Employee');
+                Swal.fire({icon: 'error', title: 'Save Failed', text: err.message});
+            });
+        }
+
+        function openEditModal(empId) {
+            const emp = appState.employees.find(e => e.id === empId);
+            if (!emp) return;
+
+            document.getElementById('edit-emp-id').value = emp.id;
+            document.getElementById('edit-emp-name').value = emp.name;
+            document.getElementById('edit-emp-pos').value = emp.pos;
+            document.getElementById('edit-emp-office').value = emp.office;
+            document.getElementById('edit-emp-email').value = emp.email;
+            document.getElementById('edit-emp-phone').value = emp.phone;
+            document.getElementById('edit-emp-photo-base64').value = emp.photo || '';
+
+            const previewImg = document.getElementById('edit-photo-img-preview');
+            if (emp.photo) {
+                previewImg.src = emp.photo;
+                previewImg.classList.remove('hidden');
+            } else {
+                previewImg.src = '';
+                previewImg.classList.add('hidden');
+            }
+            openModal('modal-edit-employee');
+        }
+
+        function handleEditEmployee(e) {
+            e.preventDefault();
+            setButtonLoading('btn-update-emp', true);
+            
+            const updatedEmp = {
+                id: document.getElementById('edit-emp-id').value,
+                name: document.getElementById('edit-emp-name').value,
+                pos: document.getElementById('edit-emp-pos').value,
+                office: document.getElementById('edit-emp-office').value,
+                email: document.getElementById('edit-emp-email').value,
+                phone: document.getElementById('edit-emp-phone').value,
+                photo: document.getElementById('edit-emp-photo-base64').value
+            };
+
+            gasRequest('updateEmployee', updatedEmp).then(() => {
+                const index = appState.employees.findIndex(em => em.id === updatedEmp.id);
+                if (index !== -1) appState.employees[index] = updatedEmp;
+                
+                closeModal('modal-edit-employee');
+                renderEmployees();
+                setButtonLoading('btn-update-emp', false, 'Update Details');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Employee updated', showConfirmButton: false, timer: 1500 });
+            }).catch(err => {
+                setButtonLoading('btn-update-emp', false, 'Update Details');
+                Swal.fire({ icon: 'error', title: 'Update Failed', text: err.message });
+            });
+        }
+
+        function handleCreateSession(e) {
+            e.preventDefault();
+            setButtonLoading('btn-save-session', true);
+            const sess = {
+                id: 'SESS-' + Math.floor(Math.random() * 10000), eventId: activeEventId,
+                name: document.getElementById('cs-name').value, date: document.getElementById('cs-date').value
+            };
+            
+            gasRequest('saveSession', sess).then(() => {
+                appState.sessions.push(sess); 
+                closeModal('modal-create-session'); 
+                renderEventDetails(); 
+                setButtonLoading('btn-save-session', false, 'Create Session');
+            }).catch(err => {
+                setButtonLoading('btn-save-session', false, 'Create Session');
+                Swal.fire({ icon: 'error', title: 'Save Failed', text: err.message });
+            });
+        }
+
+        function saveEmailTemplate() {
+            setButtonLoading('btn-save-email', true);
+            const textTemplate = document.getElementById('email-template-input').value;
+            const linkUrl = document.getElementById('email-link-input').value;
+            const combinedTemplate = textTemplate + (linkUrl ? '<--LINK-->' + linkUrl : '');
+
+            gasRequest('updateEmailTemplate', { eventId: activeEventId, template: combinedTemplate }).then(() => {
+                appState.events.find(e => e.id === activeEventId).emailTemplate = combinedTemplate;
+                setButtonLoading('btn-save-email', false, 'Save Template');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Template & Link saved', showConfirmButton: false, timer: 1500 });
+            }).catch(err => {
+                setButtonLoading('btn-save-email', false, 'Save Template');
+                Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: 'Save Failed', showConfirmButton: false, timer: 1500 });
+            });
+        }
+
+        function setBroadcastMsg(msg) {
+            document.getElementById('broadcast-msg').value = msg;
+        }
+
+        function handleBroadcast(e) {
+            e.preventDefault();
+            setButtonLoading('btn-send-broadcast', true);
+            
+            const msg = document.getElementById('broadcast-msg').value;
+            const btnLink = document.getElementById('broadcast-link').value;
+            const evt = appState.events.find(ev => ev.id === activeEventId);
+            
+            const eventSessionIds = appState.sessions.filter(s => s.eventId === activeEventId).map(s => s.id);
+            const eventAttendance = appState.attendance.filter(a => eventSessionIds.includes(a.sessionId));
+            const attendeesIds = [...new Set(eventAttendance.map(a => a.empId))];
+
+            const rawEmails = attendeesIds.map(id => {
+                const emp = appState.employees.find(em => em.id === id);
+                return (emp && emp.email) ? emp.email.trim() : null;
+            }).filter(email => email);
+
+            const uniqueEmails = [...new Set(rawEmails)];
+            
+            if (uniqueEmails.length === 0) {
+                setButtonLoading('btn-send-broadcast', false, 'Send Notification', 'fa-paper-plane');
+                Swal.fire({ icon: 'info', title: 'No Attendees Found', text: 'No one has logged their attendance for this event yet.' });
+                return;
+            }
+
+            gasRequest('sendBroadcastEmails', {
+                emails: uniqueEmails,
+                subject: `Event Update: ${evt.name}`,
+                body: msg,
+                link: btnLink
+            }).then((response) => {
+                closeModal('modal-broadcast');
+                setButtonLoading('btn-send-broadcast', false, 'Send Notification', 'fa-paper-plane');
+                e.target.reset();
+
+                if(response && response.failed && response.failed.length > 0) {
+                    const firstError = response.failed[0].error || "Unknown Apps Script error";
+                    Swal.fire({ icon: 'warning', title: 'Broadcast Partial Failure', text: `Google Server Error: ${firstError}` });
+                } else {
+                    const successCount = (response && response.success) ? response.success.length : uniqueEmails.length;
+                    Swal.fire({ icon: 'success', title: 'Broadcast Sent!', text: `Successfully sent to ${successCount} participants.` });
+                }
+            }).catch(err => {
+                setButtonLoading('btn-send-broadcast', false, 'Send Notification', 'fa-paper-plane');
+                Swal.fire({ icon: 'error', title: 'System Error', text: err.message });
+            });
+        }
+
+        // --- ID CARD GENERATION ---
+        function openIDModal(empId) {
+            const emp = appState.employees.find(e => e.id === empId);
+            if(!emp) return;
+            document.getElementById('card-name').innerText = emp.name;
+            document.getElementById('card-pos').innerText = emp.pos;
+            document.getElementById('card-office').innerText = emp.office;
+            document.querySelector('#card-id span').innerText = emp.id;
+            
+            const photoCont = document.getElementById('card-photo-container');
+            if(emp.photo) {
+                photoCont.innerHTML = `<img src="${emp.photo}">`;
+                photoCont.classList.remove('p-4', 'bg-e2e8f0');
+            } else {
+                photoCont.innerHTML = `<i class="fas fa-user"></i>`;
+                photoCont.classList.add('bg-e2e8f0');
+            }
+
+            const qrContainer = document.getElementById('card-qrcode');
+            qrContainer.innerHTML = ''; 
+            if(qrCodeInstance) qrCodeInstance.clear();
+            qrCodeInstance = new QRCode(qrContainer, { text: emp.id, width: 90, height: 90, colorDark : "#0f172a", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
+            openModal('modal-generate-id');
+        }
+
+        function downloadIDCard() {
+            const element = document.getElementById('id-card-element');
+            const empName = document.getElementById('card-name').innerText.replace(/\s+/g, '_');
+            
+            element.classList.remove('scale-95', 'sm:scale-100');
+            element.style.transform = "scale(2)";
+            element.style.transformOrigin = "top left";
+            
+            html2canvas(element, { scale: 1, backgroundColor: null, width: 500, height: 800 }).then(canvas => {
+                const link = document.createElement('a'); link.download = `ID_${empName}.png`;
+                link.href = canvas.toDataURL('image/png'); link.click();
+                
+                element.style.transform = "";
+                element.classList.add('scale-95', 'sm:scale-100');
+            });
+        }
+
+        // --- SCANNING & LIVE SEARCH ---
+        function handleSearchTyping() {
+            const term = document.getElementById('manual-scan-input').value.trim().toLowerCase();
+            const resContainer = document.getElementById('live-search-results');
+            resContainer.innerHTML = '';
+
+            if (term.length < 2) { resContainer.classList.add('hidden'); return; }
+
+            const matches = appState.employees.filter(e => e.name.toLowerCase().includes(term) || e.id.toLowerCase().includes(term));
+            
+            if (matches.length === 0) {
+                resContainer.innerHTML = '<div class="p-4 text-sm text-gray-400 text-center">No matching personnel.</div>';
+            } else {
+                matches.forEach(emp => {
+                    const img = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mr-3 text-xs"><i class="fas fa-user"></i></div>`;
+                    resContainer.innerHTML += `
+                        <div class="p-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors" onclick="confirmLog('${emp.id}')">
+                            <div class="flex items-center">
+                                ${img}
+                                <div>
+                                    <div class="font-bold text-sm text-gray-900">${emp.name}</div>
+                                    <div class="text-[10px] text-gray-500 font-mono">${emp.id} &bull; ${emp.pos}</div>
+                                </div>
+                            </div>
+                            <button class="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">Select</button>
+                        </div>
+                    `;
+                });
+            }
+            resContainer.classList.remove('hidden');
+        }
+
+        // --- CAMERA PERMISSION ---
+function handleCameraError(err) {
+    Swal.fire({ 
+        icon: 'error', 
+        title: 'Camera Access Denied', 
+        text: 'Your browser or environment is blocking camera access. Please check permissions or try a different browser.' 
+    });
+    if (typeof stopScanner === 'function') stopScanner();
+}
+
+function startScanner() {
+    document.getElementById('qr-reader-container').classList.remove('hidden');
+    document.getElementById('btn-start-camera').classList.add('hidden');
+    document.getElementById('btn-stop-camera').classList.remove('hidden');
+
+    if (!typeof html5QrcodeScanner !== 'undefined' && !html5QrcodeScanner) {
+        html5QrcodeScanner = new Html5Qrcode("qr-reader");
+    }
+    
+    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+    
+    // FIX: Use facingMode directly instead of manually querying getCameras().
+    // This triggers the permission prompt natively and reliably selects the back camera.
+    html5QrcodeScanner.start(
+        { facingMode: "environment" }, 
+        config, 
+        (qrCodeMessage) => {
+            if (typeof isProcessingScan !== 'undefined' && isProcessingScan) return;
+            if (typeof confirmLog === 'function') confirmLog(qrCodeMessage);
+        }
+    ).then(() => {
+        isCameraOn = true;
+    }).catch(err => {
+        console.error("Camera start failed:", err);
+        
+        // Fallback: If the device doesn't have a back camera (e.g., a laptop), 
+        // fall back to the default user-facing webcam.
+        const errString = String(err);
+        if (err.name === 'OverconstrainedError' || errString.includes('OverconstrainedError') || errString.includes('NotFound')) {
+            console.log("No back camera found. Falling back to default camera...");
+            
+            html5QrcodeScanner.start(
+                { facingMode: "user" }, 
+                config, 
+                (qrCodeMessage) => {
+                    if (typeof isProcessingScan !== 'undefined' && isProcessingScan) return;
+                    if (typeof confirmLog === 'function') confirmLog(qrCodeMessage);
+                }
+            ).then(() => {
+                isCameraOn = true;
+            }).catch(fallbackErr => {
+                handleCameraError(fallbackErr);
+            });
+        } else {
+            // Permission denied or other fatal errors
+            handleCameraError(err);
+        }
+    });
+}
+
+        function stopScanner() {
+            if(html5QrcodeScanner && isCameraOn) {
+                html5QrcodeScanner.stop().then(() => {
+                    isCameraOn = false;
+                    document.getElementById('qr-reader-container').classList.add('hidden');
+                    document.getElementById('btn-start-camera').classList.remove('hidden');
+                    document.getElementById('btn-stop-camera').classList.add('hidden');
+                }).catch(err => {
+                    console.log('Camera already stopped');
+                });
+            } else if (!isCameraOn) {
+                document.getElementById('qr-reader-container').classList.add('hidden');
+                document.getElementById('btn-start-camera').classList.remove('hidden');
+                document.getElementById('btn-stop-camera').classList.add('hidden');
+            }
+        }
+
+        function confirmLog(empId) {
+            isProcessingScan = true; 
+
+            document.getElementById('manual-scan-input').value = '';
+            document.getElementById('live-search-results').classList.add('hidden');
+
+            const emp = appState.employees.find(e => e.id === empId);
+            if(!emp) {
+                Swal.fire({ icon: 'error', title: 'Not Found', text: 'QR code does not match directory.' }).then(() => { isProcessingScan = false; });
+                return;
+            }
+
+            const exists = appState.attendance.find(a => a.sessionId === activeSessionId && a.empId === emp.id);
+            if (exists) {
+                Swal.fire({ icon: 'info', title: 'Already Logged', text: `${emp.name} has already scanned in today.` }).then(() => { isProcessingScan = false; });
+                return;
+            }
+
+            const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md">` : `<div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user"></i></div>`;
+
+            Swal.fire({
+                title: 'Confirm Scan',
+                html: `
+                    <div class="text-center mt-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                        ${photoHtml}
+                        <h4 class="font-bold text-gray-900 text-lg mb-0.5">${emp.name}</h4>
+                        <p class="text-sm font-mono text-secondary mb-3">${emp.id}</p>
+                        <p class="text-sm text-gray-700 font-medium mb-1">${emp.pos}</p>
+                        <p class="text-xs text-gray-500">${emp.office}</p>
+                    </div>
+                    <p class="text-[11px] text-gray-400 mt-4 uppercase tracking-widest font-bold"><i class="fas fa-bolt text-amber-400 mr-1"></i> Auto-filling 4 time slots</p>
+                `,
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#e2e8f0',
+                cancelButtonText: '<span class="text-gray-800 font-semibold">Cancel</span>',
+                confirmButtonText: '<i class="fas fa-check mr-2"></i> Confirm & Log'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    processAllSlotsLog(emp);
+                } else {
+                    isProcessingScan = false;
+                }
+            });
+        }
+
+        function processAllSlotsLog(emp) {
+            Swal.showLoading();
+            const logEntry = {
+                sessionId: activeSessionId,
+                empId: emp.id,
+                amIn: '08:00 AM',
+                amOut: '12:00 PM',
+                pmIn: '01:00 PM',
+                pmOut: '05:00 PM'
+            };
+
+            const evt = appState.events.find(e => e.id === activeEventId);
+            const sess = appState.sessions.find(s => s.id === activeSessionId);
+            const sessName = sess ? sess.name : 'the session';
+            
+            const fullTemplate = evt && evt.emailTemplate ? evt.emailTemplate : 'Thank you for attending the event.';
+            const parts = fullTemplate.split('<--LINK-->');
+            let emailText = parts[0];
+            const emailLinkUrl = parts[1] || '';
+
+            let parsedBody = emailText
+                .replace(/{name}/g, emp.name)
+                .replace(/{event}/g, evt ? evt.name : 'the event')
+                .replace(/{session}/g, sessName);
+
+            gasRequest('saveAttendanceLog', logEntry).then(() => {
+                appState.attendance.push(logEntry); 
+                renderAttendanceTable();
+                
+                // Fire and forget email notification
+                gasRequest('sendEmailNotification', {
+                    email: emp.email,
+                    subject: `Attendance Confirmed: ${evt ? evt.name : 'Event'}`,
+                    body: parsedBody,
+                    link: emailLinkUrl
+                }).catch(e => console.warn('Email send failed:', e));
+
+                Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${emp.name} Logged!`, showConfirmButton: false, timer: 2000 });
+                isProcessingScan = false;
+            }).catch(err => {
+                Swal.fire({icon: 'error', title: 'Log Error', text: err.message});
+                isProcessingScan = false;
+            });
+        }
+    </script>
+</body>
+</html>
