@@ -67,6 +67,13 @@
             body > *:not(#print-container) { display: none !important; }
             #print-container { display: block !important; width: 100%; }
         }
+        
+        /* Scanner Animation */
+        .scan-flash { animation: flashGreen 0.6s ease-out; }
+        @keyframes flashGreen {
+            0% { box-shadow: inset 0 0 0 6px #10b981, 0 0 20px rgba(16,185,129,0.8); border-color: #10b981; }
+            100% { box-shadow: inset 0 0 0 0px transparent, 0 0 0 rgba(16,185,129,0); }
+        }
     </style>
 </head>
 <body class="text-gray-800 h-screen flex flex-col overflow-hidden">
@@ -94,11 +101,11 @@
             <form id="login-form" onsubmit="handleLogin(event)">
                 <div class="mb-5">
                     <label class="block text-sm font-semibold text-gray-700 mb-1.5">Username</label>
-                    <input type="text" id="login-user" value="admin" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none">
+                    <input type="text" id="login-user" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none" placeholder="Enter your username">
                 </div>
                 <div class="mb-6">
                     <label class="block text-sm font-semibold text-gray-700 mb-1.5">Password</label>
-                    <input type="password" id="login-pass" value="password" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none">
+                    <input type="password" id="login-pass" class="w-full px-4 py-2.5 bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-secondary focus:bg-white transition-all outline-none" placeholder="Enter your password">
                 </div>
                 <button type="submit" id="btn-login" class="w-full bg-primary text-white py-3 rounded-xl hover:bg-gray-800 shadow-lg shadow-gray-900/20 transition-all font-semibold flex justify-center items-center gap-2">
                     <span>Sign In</span> <i class="fas fa-arrow-right text-sm"></i>
@@ -719,26 +726,36 @@
         function handleLogin(e) {
             e.preventDefault();
             setButtonLoading('btn-login', true);
-            setTimeout(() => {
-                const u = document.getElementById('login-user').value;
-                const p = document.getElementById('login-pass').value;
-                setButtonLoading('btn-login', false, 'Sign In', 'fa-arrow-right');
-                
-                if(u === 'admin' && p === 'password') {
-                    localStorage.setItem('isLoggedIn', 'true');
-                    const loginView = document.getElementById('view-login');
-                    loginView.classList.remove('flex');
-                    loginView.classList.add('hidden');
+            
+            const u = document.getElementById('login-user').value;
+            const p = document.getElementById('login-pass').value;
+            
+            // Send credentials securely to the backend for verification
+            gasRequest('verifyLogin', { username: u, password: p })
+                .then(res => {
+                    setButtonLoading('btn-login', false, 'Sign In', 'fa-arrow-right');
                     
-                    const appWrapper = document.getElementById('app-wrapper');
-                    appWrapper.classList.remove('hidden');
-                    
-                    navigateTo('dashboard');
-                    Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Signed in successfully', showConfirmButton: false, timer: 2000 });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'Oops...', text: 'Invalid credentials. Demo: admin/password' });
-                }
-            }, 600); 
+                    if(res && res.success) {
+                        localStorage.setItem('isLoggedIn', 'true');
+                        const loginView = document.getElementById('view-login');
+                        loginView.classList.remove('flex');
+                        loginView.classList.add('hidden');
+                        
+                        const appWrapper = document.getElementById('app-wrapper');
+                        appWrapper.classList.remove('hidden');
+                        
+                        navigateTo('dashboard');
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Signed in successfully', showConfirmButton: false, timer: 2000 });
+                    } else {
+                        // Clear password on fail
+                        document.getElementById('login-pass').value = ''; 
+                        Swal.fire({ icon: 'error', title: 'Login Failed', text: res ? res.message : 'Invalid credentials.' });
+                    }
+                })
+                .catch(err => {
+                    setButtonLoading('btn-login', false, 'Sign In', 'fa-arrow-right');
+                    Swal.fire({ icon: 'error', title: 'Connection Error', text: 'Failed to communicate with server.' });
+                });
         }
 
         function logout() {
@@ -1388,65 +1405,58 @@
             resContainer.classList.remove('hidden');
         }
 
-        // --- CAMERA PERMISSION ---
-function handleCameraError(err) {
-    Swal.fire({ 
-        icon: 'error', 
-        title: 'Camera Access Denied', 
-        text: 'Your browser or environment is blocking camera access. Please check permissions or try a different browser.' 
-    });
-    if (typeof stopScanner === 'function') stopScanner();
-}
-
-function startScanner() {
-    document.getElementById('qr-reader-container').classList.remove('hidden');
-    document.getElementById('btn-start-camera').classList.add('hidden');
-    document.getElementById('btn-stop-camera').classList.remove('hidden');
-
-    if (!typeof html5QrcodeScanner !== 'undefined' && !html5QrcodeScanner) {
-        html5QrcodeScanner = new Html5Qrcode("qr-reader");
-    }
-    
-    const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-    
-    // FIX: Use facingMode directly instead of manually querying getCameras().
-    // This triggers the permission prompt natively and reliably selects the back camera.
-    html5QrcodeScanner.start(
-        { facingMode: "environment" }, 
-        config, 
-        (qrCodeMessage) => {
-            if (typeof isProcessingScan !== 'undefined' && isProcessingScan) return;
-            if (typeof confirmLog === 'function') confirmLog(qrCodeMessage);
-        }
-    ).then(() => {
-        isCameraOn = true;
-    }).catch(err => {
-        console.error("Camera start failed:", err);
-        
-        // Fallback: If the device doesn't have a back camera (e.g., a laptop), 
-        // fall back to the default user-facing webcam.
-        const errString = String(err);
-        if (err.name === 'OverconstrainedError' || errString.includes('OverconstrainedError') || errString.includes('NotFound')) {
-            console.log("No back camera found. Falling back to default camera...");
-            
-            html5QrcodeScanner.start(
-                { facingMode: "user" }, 
-                config, 
-                (qrCodeMessage) => {
-                    if (typeof isProcessingScan !== 'undefined' && isProcessingScan) return;
-                    if (typeof confirmLog === 'function') confirmLog(qrCodeMessage);
-                }
-            ).then(() => {
-                isCameraOn = true;
-            }).catch(fallbackErr => {
-                handleCameraError(fallbackErr);
+        function handleCameraError(err) {
+            Swal.fire({ 
+                icon: 'error', 
+                title: 'Camera Access Denied', 
+                text: 'Your browser is blocking camera access. Please check permissions.' 
             });
-        } else {
-            // Permission denied or other fatal errors
-            handleCameraError(err);
+            stopScanner();
         }
-    });
-}
+
+        function startScanner() {
+            document.getElementById('qr-reader-container').classList.remove('hidden');
+            document.getElementById('btn-start-camera').classList.add('hidden');
+            document.getElementById('btn-stop-camera').classList.remove('hidden');
+
+            if (!html5QrcodeScanner) {
+                html5QrcodeScanner = new Html5Qrcode("qr-reader");
+            }
+            
+            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+            
+            Html5Qrcode.getCameras().then(devices => {
+                if (devices && devices.length) {
+                    let cameraId = devices[0].id; 
+                    for (let i = 0; i < devices.length; i++) {
+                        if (devices[i].label.toLowerCase().includes("back") || devices[i].label.toLowerCase().includes("environment")) {
+                            cameraId = devices[i].id;
+                            break;
+                        }
+                    }
+
+                    html5QrcodeScanner.start(
+                        cameraId, 
+                        config, 
+                        (qrCodeMessage) => {
+                            if (isProcessingScan) return;
+                            confirmLog(qrCodeMessage);
+                        }
+                    ).then(() => {
+                        isCameraOn = true;
+                    }).catch(err => {
+                        console.error("Camera start failed:", err);
+                        handleCameraError(err);
+                    });
+                } else {
+                    Swal.fire({ icon: 'error', title: 'No Cameras Found', text: 'No cameras were detected on this device.' });
+                    stopScanner();
+                }
+            }).catch(err => {
+                console.error("Permission denied or error:", err);
+                handleCameraError(err);
+            });
+        }
 
         function stopScanner() {
             if(html5QrcodeScanner && isCameraOn) {
@@ -1468,51 +1478,82 @@ function startScanner() {
         function confirmLog(empId) {
             isProcessingScan = true; 
 
+            // Play a beep sound and flash the scanner
+            const beep = new Audio('https://www.soundjay.com/buttons/beep-07.wav');
+            beep.volume = 0.5;
+            beep.play().catch(e => console.log('Audio autoplay blocked'));
+            
+            const qrContainer = document.getElementById('qr-reader-container');
+            if(qrContainer) {
+                qrContainer.classList.add('scan-flash');
+                setTimeout(() => qrContainer.classList.remove('scan-flash'), 600);
+            }
+
             document.getElementById('manual-scan-input').value = '';
             document.getElementById('live-search-results').classList.add('hidden');
 
-            const emp = appState.employees.find(e => e.id === empId);
-            if(!emp) {
-                Swal.fire({ icon: 'error', title: 'Not Found', text: 'QR code does not match directory.' }).then(() => { isProcessingScan = false; });
-                return;
-            }
-
-            const exists = appState.attendance.find(a => a.sessionId === activeSessionId && a.empId === emp.id);
-            if (exists) {
-                Swal.fire({ icon: 'info', title: 'Already Logged', text: `${emp.name} has already scanned in today.` }).then(() => { isProcessingScan = false; });
-                return;
-            }
-
-            const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md">` : `<div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user"></i></div>`;
-
+            // Show Scanning Animation
             Swal.fire({
-                title: 'Confirm Scan',
-                html: `
-                    <div class="text-center mt-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
-                        ${photoHtml}
-                        <h4 class="font-bold text-gray-900 text-lg mb-0.5">${emp.name}</h4>
-                        <p class="text-sm font-mono text-secondary mb-3">${emp.id}</p>
-                        <p class="text-sm text-gray-700 font-medium mb-1">${emp.pos}</p>
-                        <p class="text-xs text-gray-500">${emp.office}</p>
-                    </div>
-                    <p class="text-[11px] text-gray-400 mt-4 uppercase tracking-widest font-bold"><i class="fas fa-bolt text-amber-400 mr-1"></i> Auto-filling 4 time slots</p>
-                `,
-                showCancelButton: true,
-                confirmButtonColor: '#10b981',
-                cancelButtonColor: '#e2e8f0',
-                cancelButtonText: '<span class="text-gray-800 font-semibold">Cancel</span>',
-                confirmButtonText: '<i class="fas fa-check mr-2"></i> Confirm & Log'
-            }).then((result) => {
-                if (result.isConfirmed) {
-                    processAllSlotsLog(emp);
-                } else {
-                    isProcessingScan = false;
+                title: 'QR Code Detected!',
+                html: '<p class="text-sm text-gray-500">Processing ID...</p>',
+                timer: 600,
+                timerProgressBar: true,
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
                 }
+            }).then(() => {
+                const emp = appState.employees.find(e => e.id === empId);
+                if(!emp) {
+                    Swal.fire({ icon: 'error', title: 'Not Found', text: 'QR code does not match directory.' }).then(() => { isProcessingScan = false; });
+                    return;
+                }
+
+                const exists = appState.attendance.find(a => a.sessionId === activeSessionId && a.empId === emp.id);
+                if (exists) {
+                    Swal.fire({ icon: 'info', title: 'Already Logged', text: `${emp.name} has already scanned in today.` }).then(() => { isProcessingScan = false; });
+                    return;
+                }
+
+                const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md">` : `<div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user"></i></div>`;
+
+                Swal.fire({
+                    title: 'Confirm Scan',
+                    html: `
+                        <div class="text-center mt-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
+                            ${photoHtml}
+                            <h4 class="font-bold text-gray-900 text-lg mb-0.5">${emp.name}</h4>
+                            <p class="text-sm font-mono text-secondary mb-3">${emp.id}</p>
+                            <p class="text-sm text-gray-700 font-medium mb-1">${emp.pos}</p>
+                            <p class="text-xs text-gray-500">${emp.office}</p>
+                        </div>
+                        <p class="text-[11px] text-gray-400 mt-4 uppercase tracking-widest font-bold"><i class="fas fa-bolt text-amber-400 mr-1"></i> Auto-filling 4 time slots</p>
+                    `,
+                    showCancelButton: true,
+                    confirmButtonColor: '#10b981',
+                    cancelButtonColor: '#e2e8f0',
+                    cancelButtonText: '<span class="text-gray-800 font-semibold">Cancel</span>',
+                    confirmButtonText: '<i class="fas fa-check mr-2"></i> Confirm & Log'
+                }).then((result) => {
+                    if (result.isConfirmed) {
+                        processAllSlotsLog(emp);
+                    } else {
+                        isProcessingScan = false;
+                    }
+                });
             });
         }
 
         function processAllSlotsLog(emp) {
-            Swal.showLoading();
+            Swal.fire({
+                title: 'Logging Attendance',
+                html: 'Syncing data to Google Sheets...',
+                allowOutsideClick: false,
+                didOpen: () => {
+                    Swal.showLoading();
+                }
+            });
+
             const logEntry = {
                 sessionId: activeSessionId,
                 empId: emp.id,
