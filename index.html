@@ -409,6 +409,34 @@
 
     <!-- MODALS -->
 
+    <!-- Print Preview Modal -->
+    <div id="modal-print-preview" class="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 hidden flex-col items-center justify-center p-4">
+        <div class="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden fade-in">
+            <div class="px-6 py-4 border-b border-gray-100 flex justify-between items-center bg-gray-50 shrink-0">
+                <h3 class="font-bold text-lg text-gray-900"><i class="fas fa-file-pdf text-red-500 mr-2"></i> Attendance Sheet Preview</h3>
+                <button onclick="closeModal('modal-print-preview')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
+            </div>
+            
+            <div class="p-4 bg-gray-100 flex flex-wrap justify-center gap-4 shrink-0 border-b border-gray-200">
+                <button id="btn-save-softcopy" onclick="saveSoftCopy()" class="bg-primary text-white px-5 py-2.5 rounded-xl hover:bg-gray-800 font-bold text-sm shadow-md transition-all flex items-center gap-2">
+                    <i class="fas fa-cloud-upload-alt"></i> Save Soft Copy & Generate QR
+                </button>
+                <button id="btn-print-local" onclick="window.print()" disabled class="bg-gray-300 text-gray-500 px-5 py-2.5 rounded-xl font-bold text-sm transition-all flex items-center gap-2 cursor-not-allowed">
+                    <i class="fas fa-print"></i> Print Document
+                </button>
+            </div>
+            
+            <!-- Scaled Preview Container -->
+            <div class="flex-1 overflow-auto p-4 sm:p-8 bg-gray-200 flex justify-center">
+                <!-- Inner container maintains fixed scale to prevent text wrapping/breakage -->
+                <div id="preview-content-container" class="bg-white shadow-lg border border-gray-200 w-[800px] h-max p-10 transform origin-top scale-75 sm:scale-100">
+                    <!-- HTML Preview goes here -->
+                </div>
+            </div>
+        </div>
+    </div>
+
+
     <!-- Generate ID Modal -->
     <div id="modal-generate-id" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
         <div class="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center max-w-sm w-full fade-in">
@@ -708,6 +736,7 @@
         let activeEventId = null;
         let activeSessionId = null;
         let currentPreviewEmpId = null;
+        let currentPrintSessionId = null;
         
         // Camera handling state
         let html5QrcodeScanner = null;
@@ -751,7 +780,7 @@
                 btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Processing...`;
             } else {
                 btn.classList.remove('btn-loading');
-                btn.innerHTML = icon ? `<i class="fas ${icon}"></i> ${defaultText}` : defaultText;
+                btn.innerHTML = icon ? `<i class="fas ${icon}"></i> <span>${defaultText}</span>` : `<span>${defaultText}</span>`;
             }
         }
 
@@ -1059,7 +1088,6 @@
                 const emp = appState.employees.find(e => e.id === log.empId) || { name: 'Unknown', pos: 'Unknown', office: 'Unknown' };
                 const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3 text-gray-400 text-xs"><i class="fas fa-user"></i></div>`;
                 
-                // Reverted 'View Link' back to text instead of image thumbnail
                 const livePhotoLink = log.photo 
                     ? `<a href="${log.photo}" target="_blank" class="text-secondary hover:underline text-xs font-bold">View</a>` 
                     : `<span class="text-gray-400 text-xs italic">None</span>`;
@@ -1082,8 +1110,9 @@
             });
         }
 
-        // --- PRINT PDF LOGIC ---
+        // --- PRINT PDF & SOFT COPY LOGIC ---
         function printSession(sessionId) {
+            currentPrintSessionId = sessionId;
             const sess = appState.sessions.find(s => s.id === sessionId);
             const evt = appState.events.find(e => e.id === sess.eventId);
             const logs = appState.attendance.filter(a => a.sessionId === sessionId);
@@ -1095,84 +1124,161 @@
             } else {
                 logs.forEach(log => {
                     const emp = appState.employees.find(e => e.id === log.empId) || {};
-                    // Display the actual URL string instead of 'View Photo'
                     const photoLink = log.photo 
-                        ? `<div style="word-break: break-all; font-size: 6pt; color: #3b82f6; max-width: 150px; line-height: 1.2;">${log.photo}</div>` 
-                        : `<span style="color: #9ca3af; font-size: 8pt;">N/A</span>`;
+                        ? `<div style="word-break: break-all; font-size: 6.5pt; color: #2563eb; line-height: 1.2;">${log.photo}</div>` 
+                        : `<span style="color: #9ca3af; font-size: 7.5pt;">N/A</span>`;
                     
                     tbodyHtml += `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: bold;">${emp.name || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.pos || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.office || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.email || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.phone || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #059669;">${log.amIn || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b;">12:00 PM</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b;">01:00 PM</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #2563eb;">${log.pmOut || ''}</td>
-                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center;">${photoLink}</td>
-                            <td style="padding: 10px; text-align: center; color: #64748b; font-size: 8pt; text-transform: uppercase;">e-attendance</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; font-weight: bold; font-size: 8pt; color: #0f172a;">${emp.name || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; color: #334155; font-size: 8pt;">${emp.pos || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; color: #334155; font-size: 8pt; word-break: break-word;">${emp.office || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; color: #334155; font-size: 7.5pt; word-break: break-all;">${emp.email || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; color: #334155; font-size: 8pt;">${emp.phone || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #059669; font-size: 8.5pt;">${log.amIn || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b; font-size: 8.5pt;">12:00 PM</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b; font-size: 8.5pt;">01:00 PM</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #2563eb; font-size: 8.5pt;">${log.pmOut || ''}</td>
+                            <td style="padding: 8px 4px; border-right: 1px solid #e2e8f0; text-align: center;">${photoLink}</td>
+                            <td style="padding: 8px 4px; text-align: center; color: #1e293b; font-weight: 900; font-size: 7.5pt; text-transform: uppercase; background-color: #f8fafc;">E-Attendance</td>
                         </tr>
                     `;
                 });
             }
 
-            // Generate QR code targeting the Drive Folder for these photos
-            const folderUrl = sess.folderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(evt.name + ' ' + sess.name)}`;
-            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(folderUrl)}`;
-
             const printHtml = `
-                <div style="font-family: 'Inter', Arial, sans-serif; padding: 20px;">
-                    <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 25px; border-bottom: 3px solid #0f172a; padding-bottom: 20px;">
-                        <div style="width: 100px;"></div> <!-- Spacer to keep text centered -->
-                        <div style="text-align: center; flex: 1;">
-                            <h2 style="margin: 0; font-size: 16pt; font-weight: 800; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em;">Department of Social Welfare and Development Region 10</h2>
-                            <p style="margin: 5px 0 0 0; font-size: 11pt; color: #475569;">Masterson Avenue Cagayan de Oro City</p>
-                        </div>
-                        <div style="width: 100px; text-align: right; display: flex; flex-direction: column; align-items: flex-end;">
-                            <img src="${qrImageUrl}" style="width: 75px; height: 75px; border: 1px solid #e2e8f0; padding: 4px; border-radius: 8px; background: white;">
-                            <p style="font-size: 6pt; font-weight: bold; color: #64748b; margin-top: 6px; text-transform: uppercase; text-align: center; width: 75px;">Event Photos<br>Drive Link</p>
-                        </div>
-                    </div>
+                <div style="font-family: 'Inter', Arial, sans-serif; padding: 15px; background: white; width: 100%; box-sizing: border-box;">
                     
-                    <div style="text-align: center; margin-bottom: 30px; background-color: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">
-                        <h1 style="margin: 0 0 10px 0; font-size: 20pt; font-weight: 900; color: #1e293b;">${evt.name}</h1>
-                        <div style="display: inline-block; background: white; padding: 5px 15px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 10pt; color: #64748b; margin-bottom: 12px;">
+                    <!-- REPLACED FLEXBOX WITH TABLE FOR PERFECT PDF RENDERING -->
+                    <table style="width: 100%; border: none; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 15px;">
+                        <tr>
+                            <td style="width: 20%; vertical-align: top;"></td>
+                            <td style="width: 60%; text-align: center; vertical-align: top;">
+                                <h2 style="margin: 0; font-size: 14pt; font-weight: 800; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em;">Department of Social Welfare and Development Region 10</h2>
+                                <p style="margin: 4px 0 0 0; font-size: 10pt; color: #475569;">Masterson Avenue Cagayan de Oro City</p>
+                            </td>
+                            <td id="qr-section" style="width: 20%; text-align: right; vertical-align: top;">
+                                <div style="display: inline-block; text-align: center;">
+                                    <div id="qr-placeholder" style="width: 60px; height: 60px; border: 1px dashed #cbd5e1; display:flex; align-items:center; justify-content:center; font-size: 10px; color: #94a3b8; border-radius: 6px; background: #f8fafc; font-weight: bold; margin: 0 auto;">Empty<br>No QR</div>
+                                    <p style="font-size: 5pt; font-weight: bold; color: #64748b; margin-top: 4px; text-transform: uppercase; text-align: center; width: 60px;">Soft Copy<br>Link</p>
+                                </div>
+                            </td>
+                        </tr>
+                    </table>
+                    
+                    <div style="text-align: center; margin-bottom: 20px; background-color: #f8fafc; padding: 15px; border-radius: 8px; border: 1px solid #e2e8f0;">
+                        <h1 style="margin: 0 0 8px 0; font-size: 16pt; font-weight: 900; color: #1e293b;">${evt.name}</h1>
+                        <div style="display: inline-block; background: white; padding: 4px 12px; border-radius: 15px; border: 1px solid #cbd5e1; font-size: 9pt; color: #64748b; margin-bottom: 8px;">
                             Capacity: <strong style="color: #0f172a;">${evt.cap}</strong> &nbsp;|&nbsp; Location: <strong style="color: #0f172a;">${evt.loc}</strong>
                         </div>
-                        <h3 style="margin: 0; font-size: 14pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} &nbsp;&mdash;&nbsp; ${new Date(sess.date).toLocaleDateString()}</h3>
+                        <h3 style="margin: 0; font-size: 12pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} &nbsp;&mdash;&nbsp; ${new Date(sess.date).toLocaleDateString()}</h3>
                     </div>
 
-                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid #cbd5e1; table-layout: fixed;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 8pt; border: 1px solid #cbd5e1; table-layout: fixed;">
                         <thead>
-                            <tr style="background-color: #0f172a; color: white; -webkit-print-color-adjust: exact; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.05em;">
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 14%;">Name</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 12%;">Position</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 12%;">Office</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 13%;">Email</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 11%;">Contact</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM In</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM Out</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM In</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM Out</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 14%;">Live Photo Link</th>
-                                <th style="padding: 12px 10px; text-align: center; width: 6%;">Remarks</th>
+                            <tr style="background-color: #0f172a; color: white; -webkit-print-color-adjust: exact; print-color-adjust: exact; text-transform: uppercase; font-size: 7.5pt; letter-spacing: 0.05em;">
+                                <th style="padding: 8px 4px; text-align: left; border-right: 1px solid #334155; width: 14%;">Name</th>
+                                <th style="padding: 8px 4px; text-align: left; border-right: 1px solid #334155; width: 10%;">Position</th>
+                                <th style="padding: 8px 4px; text-align: left; border-right: 1px solid #334155; width: 12%;">Office</th>
+                                <th style="padding: 8px 4px; text-align: left; border-right: 1px solid #334155; width: 14%;">Email</th>
+                                <th style="padding: 8px 4px; text-align: left; border-right: 1px solid #334155; width: 10%;">Contact</th>
+                                <th style="padding: 8px 4px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM In</th>
+                                <th style="padding: 8px 4px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM Out</th>
+                                <th style="padding: 8px 4px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM In</th>
+                                <th style="padding: 8px 4px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM Out</th>
+                                <th style="padding: 8px 4px; text-align: center; border-right: 1px solid #334155; width: 11%;">Live Photo Link</th>
+                                <th style="padding: 8px 4px; text-align: center; width: 5%;">Rem</th>
                             </tr>
                         </thead>
                         <tbody>${tbodyHtml}</tbody>
                     </table>
                     
-                    <div style="margin-top: 40px; text-align: right; font-size: 8pt; color: #94a3b8;">
+                    <div style="margin-top: 20px; text-align: right; font-size: 7pt; color: #94a3b8;">
                         <p>Generated by EventMaster PRO on ${new Date().toLocaleString()}</p>
                     </div>
                 </div>
             `;
+            
+            // Set HTML to preview and print containers
+            document.getElementById('preview-content-container').innerHTML = printHtml;
             document.getElementById('print-container').innerHTML = printHtml;
-            // Delay increased to give the QR Code image time to fetch before invoking print
-            setTimeout(() => { window.print(); }, 800);
+            
+            // Reset Button states
+            const btnPrint = document.getElementById('btn-print-local');
+            btnPrint.disabled = true;
+            btnPrint.classList.replace('bg-secondary', 'bg-gray-300');
+            btnPrint.classList.replace('text-white', 'text-gray-500');
+            btnPrint.classList.add('cursor-not-allowed');
+            btnPrint.classList.remove('hover:bg-blue-600');
+
+            openModal('modal-print-preview');
         }
 
+        function saveSoftCopy() {
+            setButtonLoading('btn-save-softcopy', true, 'Save Soft Copy & Generate QR', 'fa-cloud-upload-alt');
+
+            const sess = appState.sessions.find(s => s.id === currentPrintSessionId);
+            const evt = appState.events.find(e => e.id === sess.eventId);
+
+            // Grab the raw HTML currently in the preview container (it does NOT contain the QR code yet)
+            const rawHtml = document.getElementById('preview-content-container').innerHTML;
+
+            const payload = {
+                htmlContent: rawHtml,
+                eventName: evt.name,
+                sessionName: sess.name
+            };
+
+            // Ask GAS to generate a PDF from this HTML, upload it, and return the Public Link
+            gasRequest('saveSoftCopy', payload).then(res => {
+                setButtonLoading('btn-save-softcopy', false, 'Save Soft Copy & Generate QR', 'fa-cloud-upload-alt');
+
+                if (res && res.url) {
+                    // Create QR Code dynamically based on the returned PDF Link
+                    const qrTemp = document.createElement('div');
+                    new QRCode(qrTemp, {
+                        text: res.url,
+                        width: 128, height: 128,
+                        colorDark : "#0f172a", colorLight : "#ffffff",
+                        correctLevel : QRCode.CorrectLevel.M
+                    });
+
+                    // Small delay to allow canvas drawing
+                    setTimeout(() => {
+                        const canvas = qrTemp.querySelector('canvas');
+                        const qrDataUrl = canvas.toDataURL("image/png");
+                        const qrImgHtml = `<img src="${qrDataUrl}" style="width: 60px; height: 60px; border: 1px solid #e2e8f0; padding: 2px; border-radius: 6px; background: white;">`;
+
+                        // Inject the new QR Code into both the preview and the print containers
+                        const updateQR = (containerId) => {
+                            const container = document.getElementById(containerId);
+                            const placeholder = container.querySelector('#qr-placeholder');
+                            if(placeholder) {
+                                placeholder.outerHTML = qrImgHtml;
+                            }
+                        };
+
+                        updateQR('preview-content-container');
+                        updateQR('print-container');
+
+                        // Unlock the Print Button
+                        const btnPrint = document.getElementById('btn-print-local');
+                        btnPrint.disabled = false;
+                        btnPrint.classList.replace('bg-gray-300', 'bg-secondary');
+                        btnPrint.classList.replace('text-gray-500', 'text-white');
+                        btnPrint.classList.remove('cursor-not-allowed');
+                        btnPrint.classList.add('hover:bg-blue-600');
+
+                        Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Soft Copy Uploaded!', showConfirmButton: false, timer: 2000 });
+                    }, 100);
+                }
+            }).catch(err => {
+                setButtonLoading('btn-save-softcopy', false, 'Save Soft Copy & Generate QR', 'fa-cloud-upload-alt');
+                Swal.fire({ icon: 'error', title: 'Failed to Save PDF', text: err.message });
+            });
+        }
+
+        // --- GENERAL IMAGE UPLOAD HELPER ---
         function handleImageUpload(event, previewId, base64Id) {
             const file = event.target.files[0];
             if(!file) return;
@@ -1200,6 +1306,7 @@
             reader.readAsDataURL(file);
         }
 
+        // --- CSV IMPORT LOGIC ---
         function handleCSVImport() {
             const fileInput = document.getElementById('csv-file-input');
             const file = fileInput.files[0];
@@ -1452,7 +1559,6 @@
         }
 
         // --- SCANNING & REALTIME / LIVE PHOTO LOGIC WITH CAMERA SWITCHING ---
-
         const handleQRScan = (qrCodeMessage) => {
             if (isProcessingScan) return;
             confirmLog(qrCodeMessage, false);
