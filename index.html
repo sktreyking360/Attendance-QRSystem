@@ -12,6 +12,9 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <!-- HTML2Canvas -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
+    <!-- JSZip & FileSaver (For Bulk Downloads) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/FileSaver.js/2.0.5/FileSaver.min.js"></script>
     <!-- HTML5-QRCode (For Scanning) -->
     <script src="https://unpkg.com/html5-qrcode"></script>
     <!-- SweetAlert2 -->
@@ -62,7 +65,7 @@
         /* Print Styles */
         #print-container { display: none; }
         @media print {
-            @page { size: landscape; margin: 15mm; }
+            @page { size: landscape; margin: 10mm; }
             body { background-color: white !important; margin: 0; padding: 0; }
             body > *:not(#print-container) { display: none !important; }
             #print-container { display: block !important; width: 100%; }
@@ -182,17 +185,31 @@
                 </div>
 
                 <div class="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-                    <div class="p-4 border-b border-gray-100 bg-white">
+                    <div class="p-4 border-b border-gray-100 bg-white flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
                         <div class="relative w-full sm:w-72">
                             <i class="fas fa-search absolute left-4 top-1/2 -translate-y-1/2 text-gray-400"></i>
                             <input type="text" id="emp-search" placeholder="Search employee..." class="w-full bg-gray-50 border-none rounded-lg pl-10 pr-4 py-2 outline-none text-sm focus:bg-white focus:ring-2 focus:ring-secondary" oninput="renderEmployees()">
+                        </div>
+                        
+                        <!-- Bulk Actions Container -->
+                        <div id="bulk-actions-container" class="hidden flex items-center gap-2 w-full sm:w-auto justify-end">
+                            <span class="text-xs font-bold text-gray-500 bg-gray-50 px-2.5 py-1.5 rounded-md border border-gray-200" id="bulk-count">0 selected</span>
+                            <button onclick="handleBulkDownload('id')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-1.5">
+                                <i class="fas fa-id-card"></i> Bulk IDs
+                            </button>
+                            <button onclick="handleBulkDownload('qr')" class="bg-teal-50 hover:bg-teal-100 text-teal-700 border border-teal-200 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-1.5">
+                                <i class="fas fa-qrcode"></i> Bulk QRs
+                            </button>
                         </div>
                     </div>
                     <div class="overflow-x-auto overflow-y-auto max-h-[600px] w-full">
                         <table class="w-full text-left border-collapse min-w-[800px]">
                             <thead class="sticky top-0 z-10">
                                 <tr class="bg-gray-50 text-gray-500 text-xs uppercase tracking-wider font-semibold border-b border-gray-200 shadow-sm">
-                                    <th class="p-4 pl-6 w-16">Photo</th>
+                                    <th class="p-4 pl-6 w-12 text-center">
+                                        <input type="checkbox" id="selectAllEmp" onchange="toggleAllEmployees(this)" class="w-4 h-4 rounded border-gray-300 text-secondary focus:ring-secondary cursor-pointer">
+                                    </th>
+                                    <th class="p-4 w-16">Photo</th>
                                     <th class="p-4">Employee Details</th>
                                     <th class="p-4">Office Assignment</th>
                                     <th class="p-4">Contact</th>
@@ -292,7 +309,7 @@
                             </div>
                             <h3 class="font-bold text-gray-900 mb-4">QR Code Scanner</h3>
                             
-                            <div id="qr-reader-container" class="mb-5 hidden w-full rounded-xl overflow-hidden border-2 border-dashed border-secondary/30 bg-gray-50">
+                            <div id="qr-reader-container" class="mb-5 hidden w-full rounded-xl overflow-hidden border-2 border-dashed border-secondary/30 bg-gray-50 relative">
                                 <div id="qr-reader" class="w-full"></div>
                             </div>
                             
@@ -327,14 +344,13 @@
                             <span class="text-xs font-medium bg-green-50 text-green-700 px-3 py-1 rounded-full border border-green-200 flex items-center gap-1"><i class="fas fa-circle text-[8px] animate-pulse"></i> Syncing</span>
                         </div>
                         <div class="flex-1 overflow-x-auto overflow-y-auto">
-                            <table class="w-full text-left border-collapse min-w-[700px]">
+                            <table class="w-full text-left border-collapse min-w-[600px]">
                                 <thead class="sticky top-0 z-10">
                                     <tr class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[11px] font-bold border-b border-gray-200 shadow-sm">
                                         <th class="p-4 pl-6">Employee</th>
-                                        <th class="p-4 text-center">8:00 AM (In)</th>
-                                        <th class="p-4 text-center">12:00 PM (Out)</th>
-                                        <th class="p-4 text-center">1:00 PM (In)</th>
-                                        <th class="p-4 text-center">5:00 PM (Out)</th>
+                                        <th class="p-4 text-center">Time In</th>
+                                        <th class="p-4 text-center">Time Out</th>
+                                        <th class="p-4 text-center">Live Photo</th>
                                     </tr>
                                 </thead>
                                 <tbody id="attendance-table-body" class="divide-y divide-gray-100 text-sm bg-white"></tbody>
@@ -357,8 +373,8 @@
                 <button onclick="closeModal('modal-generate-id')" class="text-gray-400 hover:text-gray-800 transition-colors w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             
-            <div id="id-card-element" class="id-card scale-95 sm:scale-100 transform origin-top">
-                <div class="id-card-header">EMPLOYEE ID</div>
+            <div id="id-card-element" class="id-card scale-95 sm:scale-100 transform origin-top pointer-events-none">
+                <div class="id-card-header">DSWD QR ID</div>
                 <div class="id-photo-placeholder" id="card-photo-container">
                     <i class="fas fa-user"></i>
                 </div>
@@ -372,9 +388,9 @@
                 </div>
             </div>
 
-            <div class="mt-6 w-full">
-                <button onclick="downloadIDCard()" class="w-full bg-accent text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/30 font-bold flex justify-center items-center gap-2">
-                    <i class="fas fa-download"></i> Save as PNG
+            <div class="mt-6 w-full flex flex-col gap-2">
+                <button id="btn-download-preview-id" onclick="downloadIDCard()" class="w-full bg-accent text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/30 font-bold flex justify-center items-center gap-2">
+                    <i class="fas fa-download"></i> Save ID as PNG
                 </button>
             </div>
         </div>
@@ -472,8 +488,8 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Employee ID</label>
-                        <input type="text" id="emp-id" placeholder="EMP-001" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary uppercase text-sm font-mono">
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">DSWD QR ID</label>
+                        <input type="text" id="emp-id" placeholder="ID-001" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary uppercase text-sm font-mono">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Full Name</label>
@@ -481,16 +497,16 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Position</label>
-                        <input type="text" id="emp-pos" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                        <input type="text" id="emp-pos" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Email</label>
-                        <input type="email" id="emp-email" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                        <input type="email" id="emp-email" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
                     </div>
                     <div class="col-span-1 sm:col-span-2">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Office Assignment</label>
-                        <select id="emp-office" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
-                            <option value="" disabled selected>Select Division</option>
+                        <select id="emp-office" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                            <option value="" disabled selected>Select Division (Optional)</option>
                             <option value="Policy and Plans Division">Policy and Plans Division</option>
                             <option value="Protective Services Division">Protective Services Division</option>
                             <option value="Promotive Services Division">Promotive Services Division</option>
@@ -505,7 +521,7 @@
                     </div>
                     <div class="col-span-1 sm:col-span-2">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Phone Number</label>
-                        <input type="text" id="emp-phone" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
+                        <input type="text" id="emp-phone" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-primary text-sm">
                     </div>
                 </div>
                 <div class="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
@@ -538,7 +554,7 @@
 
                 <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
                     <div>
-                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Employee ID</label>
+                        <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">DSWD QR ID</label>
                         <input type="text" id="edit-emp-id" readonly class="w-full bg-gray-100 border border-gray-200 rounded-lg px-3 py-2.5 outline-none text-sm font-mono text-gray-500 cursor-not-allowed" title="ID cannot be changed after registration">
                     </div>
                     <div>
@@ -547,16 +563,16 @@
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Position</label>
-                        <input type="text" id="edit-emp-pos" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                        <input type="text" id="edit-emp-pos" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
                     </div>
                     <div>
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Email</label>
-                        <input type="email" id="edit-emp-email" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                        <input type="email" id="edit-emp-email" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
                     </div>
                     <div class="col-span-1 sm:col-span-2">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Office Assignment</label>
-                        <select id="edit-emp-office" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
-                            <option value="" disabled>Select Division</option>
+                        <select id="edit-emp-office" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                            <option value="">Select Division (Optional)</option>
                             <option value="Policy and Plans Division">Policy and Plans Division</option>
                             <option value="Protective Services Division">Protective Services Division</option>
                             <option value="Promotive Services Division">Promotive Services Division</option>
@@ -571,7 +587,7 @@
                     </div>
                     <div class="col-span-1 sm:col-span-2">
                         <label class="block text-xs font-bold text-gray-600 uppercase tracking-wide mb-1.5">Phone Number</label>
-                        <input type="text" id="edit-emp-phone" required class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
+                        <input type="text" id="edit-emp-phone" placeholder="(Optional)" class="w-full bg-gray-50 border border-gray-200 rounded-lg px-3 py-2.5 outline-none focus:bg-white focus:ring-2 focus:ring-amber-500 text-sm">
                     </div>
                 </div>
                 <div class="pt-4 flex justify-end gap-3 border-t border-gray-100 mt-2">
@@ -590,7 +606,7 @@
                 <button onclick="closeModal('modal-import-csv')" class="text-gray-400 hover:text-gray-800"><i class="fas fa-times"></i></button>
             </div>
             <div class="p-6 space-y-4">
-                <p class="text-xs text-gray-500">Upload a CSV file to bulk import employees. Expected column order:<br> <code class="bg-gray-100 px-1 rounded block mt-1">ID, Name, Position, Office, Email, Phone</code></p>
+                <p class="text-xs text-gray-500">Upload a CSV file to bulk import employees. Expected column order:<br> <code class="bg-gray-100 px-1 rounded block mt-1">ID, Name, Pos(opt), Office(opt), Email(opt), Phone(opt)</code></p>
                 <input type="file" id="csv-file-input" accept=".csv" class="w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-emerald-50 file:text-accent hover:file:bg-emerald-100">
                 <button id="btn-import-csv" onclick="handleCSVImport()" class="w-full bg-accent text-white py-3 rounded-xl hover:bg-emerald-600 font-bold text-sm shadow-md transition-all mt-2 flex justify-center items-center gap-2">
                     <i class="fas fa-upload"></i> Process CSV
@@ -647,6 +663,7 @@
         let appState = { events: [], employees: [], sessions: [], attendance: [] };
         let activeEventId = null;
         let activeSessionId = null;
+        let currentPreviewEmpId = null;
         let qrCodeInstance = null;
         let html5QrcodeScanner = null;
         let isProcessingScan = false;
@@ -660,7 +677,6 @@
             };
 
             if (payload) {
-                // Sent as text/plain by default to avoid CORS preflight errors in Apps Script
                 options.body = JSON.stringify(payload); 
             }
 
@@ -695,7 +711,6 @@
         window.onload = () => {
             startClock();
             
-            // Connect to Google Apps Script Backend
             gasRequest('getAppData')
                 .then(data => {
                     appState = data;
@@ -730,7 +745,6 @@
             const u = document.getElementById('login-user').value;
             const p = document.getElementById('login-pass').value;
             
-            // Send credentials securely to the backend for verification
             gasRequest('verifyLogin', { username: u, password: p })
                 .then(res => {
                     setButtonLoading('btn-login', false, 'Sign In', 'fa-arrow-right');
@@ -747,7 +761,6 @@
                         navigateTo('dashboard');
                         Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: 'Signed in successfully', showConfirmButton: false, timer: 2000 });
                     } else {
-                        // Clear password on fail
                         document.getElementById('login-pass').value = ''; 
                         Swal.fire({ icon: 'error', title: 'Login Failed', text: res ? res.message : 'Invalid credentials.' });
                     }
@@ -821,7 +834,6 @@
             }, 1000);
         }
 
-        // --- RENDERERS ---
         function renderEvents() {
             const filter = document.getElementById('filter-status').value;
             const search = document.getElementById('filter-search').value.toLowerCase();
@@ -907,10 +919,13 @@
             const tbody = document.getElementById('employee-table-body');
             tbody.innerHTML = '';
             
+            document.getElementById('selectAllEmp').checked = false;
+            updateBulkCount();
+
             const filtered = appState.employees.filter(emp => emp.name.toLowerCase().includes(search) || emp.id.toLowerCase().includes(search));
             
             if(filtered.length === 0) {
-                tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-400">No employees found in directory.</td></tr>`;
+                tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400">No employees found in directory.</td></tr>`;
                 return;
             }
 
@@ -921,31 +936,57 @@
 
                 tbody.innerHTML += `
                     <tr class="hover:bg-blue-50/50 transition-colors group">
-                        <td class="p-4 pl-6">${photoHtml}</td>
+                        <td class="p-4 pl-6 text-center"><input type="checkbox" class="emp-checkbox w-4 h-4 rounded border-gray-300 text-secondary focus:ring-secondary cursor-pointer" value="${emp.id}" onchange="updateBulkCount()"></td>
+                        <td class="p-4">${photoHtml}</td>
                         <td class="p-4">
                             <div class="font-bold text-gray-900 text-sm">${emp.name}</div>
                             <div class="font-mono text-[10px] text-secondary mt-0.5 tracking-wider">${emp.id}</div>
                         </td>
                         <td class="p-4">
-                            <div class="text-sm font-medium text-gray-700">${emp.pos}</div>
-                            <div class="text-xs text-gray-500 truncate max-w-[200px]" title="${emp.office}">${emp.office}</div>
+                            <div class="text-sm font-medium text-gray-700">${emp.pos || '<i class="text-gray-400 text-xs">N/A</i>'}</div>
+                            <div class="text-xs text-gray-500 truncate max-w-[200px]" title="${emp.office}">${emp.office || ''}</div>
                         </td>
                         <td class="p-4 text-gray-600 text-xs space-y-1">
-                            <div class="flex items-center gap-1.5"><i class="fas fa-envelope text-gray-400"></i> ${emp.email}</div>
-                            <div class="flex items-center gap-1.5"><i class="fas fa-phone text-gray-400"></i> ${emp.phone}</div>
+                            <div class="flex items-center gap-1.5"><i class="fas fa-envelope text-gray-400"></i> ${emp.email || '<span class="text-gray-400 italic">N/A</span>'}</div>
+                            <div class="flex items-center gap-1.5"><i class="fas fa-phone text-gray-400"></i> ${emp.phone || '<span class="text-gray-400 italic">N/A</span>'}</div>
                         </td>
                         <td class="p-4 text-center">
-                            <div class="flex items-center justify-center gap-2">
+                            <div class="flex flex-wrap items-center justify-center gap-2">
                                 <button onclick="openEditModal('${emp.id}')" class="text-amber-500 hover:text-white bg-amber-50 hover:bg-amber-500 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Edit Employee">
                                     <i class="fas fa-edit"></i>
                                 </button>
-                                <button onclick="openIDModal('${emp.id}')" class="text-secondary hover:text-white bg-blue-50 hover:bg-secondary px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Generate ID">
-                                    <i class="fas fa-id-badge"></i> ID Card
+                                <button onclick="openIDModal('${emp.id}')" class="text-secondary hover:text-white bg-blue-50 hover:bg-secondary px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Preview ID Card">
+                                    <i class="fas fa-id-badge"></i> ID
+                                </button>
+                                <button onclick="downloadQRCodeOnly('${emp.id}')" class="text-teal-600 hover:text-white bg-teal-50 hover:bg-teal-500 px-3 py-1.5 rounded-lg text-xs font-bold transition-all shadow-sm" title="Download QR Code">
+                                    <i class="fas fa-qrcode"></i> QR
                                 </button>
                             </div>
                         </td>
                     </tr>`;
             });
+        }
+
+        function toggleAllEmployees(source) {
+            const checkboxes = document.querySelectorAll('.emp-checkbox');
+            checkboxes.forEach(cb => cb.checked = source.checked);
+            updateBulkCount();
+        }
+
+        function updateBulkCount() {
+            const count = document.querySelectorAll('.emp-checkbox:checked').length;
+            const container = document.getElementById('bulk-actions-container');
+            const countSpan = document.getElementById('bulk-count');
+            
+            if(count > 0) {
+                container.classList.remove('hidden');
+                container.classList.add('flex');
+                countSpan.innerText = `${count} selected`;
+            } else {
+                container.classList.add('hidden');
+                container.classList.remove('flex');
+                document.getElementById('selectAllEmp').checked = false;
+            }
         }
 
         function renderAttendanceSession() {
@@ -962,7 +1003,7 @@
             const logs = appState.attendance.filter(a => a.sessionId === activeSessionId);
             
             if(logs.length === 0) {
-                 tbody.innerHTML = `<tr><td colspan="5" class="p-8 text-center text-gray-400">No attendance logs yet.</td></tr>`;
+                 tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-400">No attendance logs yet.</td></tr>`;
                  return;
             }
 
@@ -970,6 +1011,10 @@
                 const emp = appState.employees.find(e => e.id === log.empId) || { name: 'Unknown', pos: 'Unknown', office: 'Unknown' };
                 const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3 text-gray-400 text-xs"><i class="fas fa-user"></i></div>`;
                 
+                const livePhotoLink = log.photo 
+                    ? `<a href="${log.photo}" target="_blank" class="text-secondary hover:underline flex items-center justify-center gap-1"><i class="fas fa-camera-retro"></i> View</a>` 
+                    : `<span class="text-gray-400 text-xs italic">None</span>`;
+
                 tbody.innerHTML += `
                     <tr class="hover:bg-gray-50 transition-colors">
                         <td class="p-4 pl-6 flex items-center">
@@ -980,14 +1025,13 @@
                             </div>
                         </td>
                         <td class="p-4 text-center font-mono text-xs"><span class="${log.amIn ? 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.amIn || '-'}</span></td>
-                        <td class="p-4 text-center font-mono text-xs"><span class="${log.amOut ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.amOut || '-'}</span></td>
-                        <td class="p-4 text-center font-mono text-xs"><span class="${log.pmIn ? 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.pmIn || '-'}</span></td>
                         <td class="p-4 text-center font-mono text-xs"><span class="${log.pmOut ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.pmOut || '-'}</span></td>
+                        <td class="p-4 text-center text-xs font-semibold">${livePhotoLink}</td>
                     </tr>`;
             });
         }
 
-        // --- PRINT LOGIC ---
+        // --- PRINT PDF LOGIC (UPDATED WITH NEW COLUMNS) ---
         function printSession(sessionId) {
             const sess = appState.sessions.find(s => s.id === sessionId);
             const evt = appState.events.find(e => e.id === sess.eventId);
@@ -996,55 +1040,65 @@
             let tbodyHtml = '';
             
             if (logs.length === 0) {
-                tbodyHtml = `<tr><td colspan="9" style="text-align: center; padding: 15px; color: #666;">No attendance recorded for this session yet.</td></tr>`;
+                tbodyHtml = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #666; font-style: italic;">No attendance recorded for this session yet.</td></tr>`;
             } else {
                 logs.forEach(log => {
                     const emp = appState.employees.find(e => e.id === log.empId) || {};
+                    const photoLink = log.photo ? `<a href="${log.photo}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: bold;">[View Photo]</a>` : `<span style="color: #9ca3af; font-size: 8pt;">N/A</span>`;
+                    
                     tbodyHtml += `
-                        <tr>
-                            <td style="border: 1px solid #000; padding: 6px;">${emp.name || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${emp.pos || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${emp.office || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${emp.email || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px;">${emp.phone || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.amIn || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.amOut || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.pmIn || ''}</td>
-                            <td style="border: 1px solid #000; padding: 6px; text-align: center;">${log.pmOut || ''}</td>
+                        <tr style="border-bottom: 1px solid #e2e8f0;">
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; font-weight: bold;">${emp.name || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.pos || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.office || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.email || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.phone || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #059669;">${log.amIn || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #2563eb;">${log.pmOut || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center;">${photoLink}</td>
+                            <td style="padding: 10px; text-align: center; color: #64748b; font-size: 8pt; text-transform: uppercase;">e-attendance</td>
                         </tr>
                     `;
                 });
             }
 
             const printHtml = `
-                <div style="font-family: Arial, sans-serif; padding: 10px;">
-                    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 20px; border-bottom: 2px solid #0f172a; padding-bottom: 15px;">
+                <div style="font-family: 'Inter', Arial, sans-serif; padding: 20px;">
+                    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 25px; border-bottom: 3px solid #0f172a; padding-bottom: 20px;">
                         <div style="text-align: center;">
-                            <h2 style="margin: 0; font-size: 15pt; font-weight: bold; text-transform: uppercase;">Department of Social Welfare and Development Region 10</h2>
-                            <p style="margin: 3px 0 0 0; font-size: 11pt;">Masterson Avenue Cagayan de Oro City</p>
+                            <h2 style="margin: 0; font-size: 16pt; font-weight: 800; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em;">Department of Social Welfare and Development Region 10</h2>
+                            <p style="margin: 5px 0 0 0; font-size: 11pt; color: #475569;">Masterson Avenue Cagayan de Oro City</p>
                         </div>
                     </div>
-                    <div style="text-align: center; margin-bottom: 25px;">
-                        <h1 style="margin: 0; font-size: 18pt; font-weight: bold;">${evt.name}</h1>
-                        <p style="margin: 5px 0; font-size: 11pt;">Capacity: <strong>${evt.cap}</strong> &nbsp;|&nbsp; Location: <strong>${evt.loc}</strong></p>
-                        <p style="margin: 10px 0 0 0; font-size: 12pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} (${new Date(sess.date).toLocaleDateString()})</p>
+                    
+                    <div style="text-align: center; margin-bottom: 30px; background-color: #f8fafc; padding: 20px; border-radius: 10px; border: 1px solid #e2e8f0;">
+                        <h1 style="margin: 0 0 10px 0; font-size: 20pt; font-weight: 900; color: #1e293b;">${evt.name}</h1>
+                        <div style="display: inline-block; background: white; padding: 5px 15px; border-radius: 20px; border: 1px solid #cbd5e1; font-size: 10pt; color: #64748b; margin-bottom: 12px;">
+                            Capacity: <strong style="color: #0f172a;">${evt.cap}</strong> &nbsp;|&nbsp; Location: <strong style="color: #0f172a;">${evt.loc}</strong>
+                        </div>
+                        <h3 style="margin: 0; font-size: 14pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} &nbsp;&mdash;&nbsp; ${new Date(sess.date).toLocaleDateString()}</h3>
                     </div>
-                    <table style="width: 100%; border-collapse: collapse; font-size: 9.5pt;">
+
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid #cbd5e1;">
                         <thead>
-                            <tr style="background-color: #f1f5f9; -webkit-print-color-adjust: exact;">
-                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Name</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Position</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Office</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Email</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: left;">Contact Number</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time In</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time Out</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time In</th>
-                                <th style="border: 1px solid #000; padding: 8px; text-align: center; width: 80px;">Time Out</th>
+                            <tr style="background-color: #0f172a; color: white; -webkit-print-color-adjust: exact; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.05em;">
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Name</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Position</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Office</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Email</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Contact Number</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Time In</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Time Out</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Live Photo</th>
+                                <th style="padding: 12px 10px; text-align: center; width: 80px;">Remarks</th>
                             </tr>
                         </thead>
                         <tbody>${tbodyHtml}</tbody>
                     </table>
+                    
+                    <div style="margin-top: 40px; text-align: right; font-size: 8pt; color: #94a3b8;">
+                        <p>Generated by EventMaster PRO on ${new Date().toLocaleString()}</p>
+                    </div>
                 </div>
             `;
             document.getElementById('print-container').innerHTML = printHtml;
@@ -1098,18 +1152,18 @@
                     const line = lines[i].trim();
                     if (!line) continue;
                     const cols = line.split(',');
-                    if (cols.length >= 6) {
+                    if (cols.length >= 2) {
                         const id = cols[0].replace(/['"]/g, '').trim().toUpperCase();
                         if (id.toLowerCase() === 'id') continue; 
                         
                         if(!appState.employees.find(emp => emp.id === id)) {
                             appState.employees.push({
                                 id: id,
-                                name: cols[1].replace(/['"]/g, '').trim(),
-                                pos: cols[2].replace(/['"]/g, '').trim(),
-                                office: cols[3].replace(/['"]/g, '').trim(),
-                                email: cols[4].replace(/['"]/g, '').trim(),
-                                phone: cols[5].replace(/['"]/g, '').trim(),
+                                name: cols[1] ? cols[1].replace(/['"]/g, '').trim() : '',
+                                pos: cols[2] ? cols[2].replace(/['"]/g, '').trim() : '',
+                                office: cols[3] ? cols[3].replace(/['"]/g, '').trim() : '',
+                                email: cols[4] ? cols[4].replace(/['"]/g, '').trim() : '',
+                                phone: cols[5] ? cols[5].replace(/['"]/g, '').trim() : '',
                                 photo: ''
                             });
                             count++;
@@ -1128,7 +1182,7 @@
             reader.readAsText(file);
         }
 
-        // --- CRUD ACTIONS & OTHER LOGIC (Refactored for Fetch) ---
+        // --- CRUD ACTIONS & OTHER LOGIC ---
         function handleCreateEvent(e) {
             e.preventDefault();
             setButtonLoading('btn-save-event', true);
@@ -1156,14 +1210,12 @@
             const evt = appState.events.find(e => e.id === activeEventId);
             if(!evt) return;
             
-            // Toggle local state temporarily
             evt.status = evt.status === 'ongoing' ? 'finished' : 'ongoing';
             renderEventDetails(); 
             
             gasRequest('updateEventStatus', { id: evt.id, status: evt.status }).then(() => {
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `Event marked as ${evt.status}`, showConfirmButton: false, timer: 1500 });
             }).catch(err => {
-                // Revert on fail
                 evt.status = evt.status === 'ongoing' ? 'finished' : 'ongoing';
                 renderEventDetails();
                 Swal.fire({ toast: true, position: 'top-end', icon: 'error', title: `Failed to sync status`, showConfirmButton: false, timer: 1500 });
@@ -1199,10 +1251,10 @@
 
             document.getElementById('edit-emp-id').value = emp.id;
             document.getElementById('edit-emp-name').value = emp.name;
-            document.getElementById('edit-emp-pos').value = emp.pos;
-            document.getElementById('edit-emp-office').value = emp.office;
-            document.getElementById('edit-emp-email').value = emp.email;
-            document.getElementById('edit-emp-phone').value = emp.phone;
+            document.getElementById('edit-emp-pos').value = emp.pos || '';
+            document.getElementById('edit-emp-office').value = emp.office || '';
+            document.getElementById('edit-emp-email').value = emp.email || '';
+            document.getElementById('edit-emp-phone').value = emp.phone || '';
             document.getElementById('edit-emp-photo-base64').value = emp.photo || '';
 
             const previewImg = document.getElementById('edit-photo-img-preview');
@@ -1331,49 +1383,22 @@
             });
         }
 
-        // --- ID CARD GENERATION ---
-        function openIDModal(empId) {
-            const emp = appState.employees.find(e => e.id === empId);
-            if(!emp) return;
-            document.getElementById('card-name').innerText = emp.name;
-            document.getElementById('card-pos').innerText = emp.pos;
-            document.getElementById('card-office').innerText = emp.office;
-            document.querySelector('#card-id span').innerText = emp.id;
+        // --- SCANNING & REALTIME / LIVE PHOTO LOGIC ---
+        
+        // Helper function to capture the live video frame
+        function captureCameraFrame() {
+            const video = document.querySelector('#qr-reader video');
+            if (!video) return null;
             
-            const photoCont = document.getElementById('card-photo-container');
-            if(emp.photo) {
-                photoCont.innerHTML = `<img src="${emp.photo}">`;
-                photoCont.classList.remove('p-4', 'bg-e2e8f0');
-            } else {
-                photoCont.innerHTML = `<i class="fas fa-user"></i>`;
-                photoCont.classList.add('bg-e2e8f0');
-            }
-
-            const qrContainer = document.getElementById('card-qrcode');
-            qrContainer.innerHTML = ''; 
-            if(qrCodeInstance) qrCodeInstance.clear();
-            qrCodeInstance = new QRCode(qrContainer, { text: emp.id, width: 90, height: 90, colorDark : "#0f172a", colorLight : "#ffffff", correctLevel : QRCode.CorrectLevel.H });
-            openModal('modal-generate-id');
+            const canvas = document.createElement('canvas');
+            // Use reasonable dimensions for faster upload/smaller size
+            canvas.width = 640; 
+            canvas.height = (video.videoHeight / video.videoWidth) * 640 || 480; 
+            
+            canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+            return canvas.toDataURL('image/jpeg', 0.8);
         }
 
-        function downloadIDCard() {
-            const element = document.getElementById('id-card-element');
-            const empName = document.getElementById('card-name').innerText.replace(/\s+/g, '_');
-            
-            element.classList.remove('scale-95', 'sm:scale-100');
-            element.style.transform = "scale(2)";
-            element.style.transformOrigin = "top left";
-            
-            html2canvas(element, { scale: 1, backgroundColor: null, width: 500, height: 800 }).then(canvas => {
-                const link = document.createElement('a'); link.download = `ID_${empName}.png`;
-                link.href = canvas.toDataURL('image/png'); link.click();
-                
-                element.style.transform = "";
-                element.classList.add('scale-95', 'sm:scale-100');
-            });
-        }
-
-        // --- SCANNING & LIVE SEARCH ---
         function handleSearchTyping() {
             const term = document.getElementById('manual-scan-input').value.trim().toLowerCase();
             const resContainer = document.getElementById('live-search-results');
@@ -1384,17 +1409,24 @@
             const matches = appState.employees.filter(e => e.name.toLowerCase().includes(term) || e.id.toLowerCase().includes(term));
             
             if (matches.length === 0) {
-                resContainer.innerHTML = '<div class="p-4 text-sm text-gray-400 text-center">No matching personnel.</div>';
+                resContainer.innerHTML = `
+                    <div class="p-6 flex flex-col items-center justify-center text-center bg-gray-50 border-b border-gray-100">
+                        <div class="w-12 h-12 bg-gray-200 rounded-full flex items-center justify-center text-gray-400 mb-3"><i class="fas fa-user-slash"></i></div>
+                        <p class="text-sm text-gray-600 font-medium mb-1">Employee not found.</p>
+                        <p class="text-xs text-gray-400 mb-4">The DSWD QR ID or name you entered does not exist in the directory.</p>
+                        <button onclick="openModal('modal-add-employee')" class="bg-primary hover:bg-gray-800 text-white px-4 py-2 rounded-lg text-xs font-bold transition-colors shadow-sm"><i class="fas fa-user-plus mr-1"></i> Register Employee</button>
+                    </div>
+                `;
             } else {
                 matches.forEach(emp => {
                     const img = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 text-gray-400 flex items-center justify-center mr-3 text-xs"><i class="fas fa-user"></i></div>`;
                     resContainer.innerHTML += `
-                        <div class="p-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors" onclick="confirmLog('${emp.id}')">
+                        <div class="p-3 border-b border-gray-100 hover:bg-blue-50 cursor-pointer flex justify-between items-center transition-colors" onclick="confirmLog('${emp.id}', true)">
                             <div class="flex items-center">
                                 ${img}
                                 <div>
                                     <div class="font-bold text-sm text-gray-900">${emp.name}</div>
-                                    <div class="text-[10px] text-gray-500 font-mono">${emp.id} &bull; ${emp.pos}</div>
+                                    <div class="text-[10px] text-gray-500 font-mono">${emp.id} &bull; ${emp.pos || 'N/A'}</div>
                                 </div>
                             </div>
                             <button class="bg-primary text-white px-3 py-1.5 rounded-lg text-xs font-semibold shadow-sm">Select</button>
@@ -1406,11 +1438,7 @@
         }
 
         function handleCameraError(err) {
-            Swal.fire({ 
-                icon: 'error', 
-                title: 'Camera Access Denied', 
-                text: 'Your browser is blocking camera access. Please check permissions.' 
-            });
+            Swal.fire({ icon: 'error', title: 'Camera Access Denied', text: 'Your browser is blocking camera access. Please check permissions.' });
             stopScanner();
         }
 
@@ -1440,12 +1468,11 @@
                         config, 
                         (qrCodeMessage) => {
                             if (isProcessingScan) return;
-                            confirmLog(qrCodeMessage);
+                            confirmLog(qrCodeMessage, false);
                         }
                     ).then(() => {
                         isCameraOn = true;
                     }).catch(err => {
-                        console.error("Camera start failed:", err);
                         handleCameraError(err);
                     });
                 } else {
@@ -1453,7 +1480,6 @@
                     stopScanner();
                 }
             }).catch(err => {
-                console.error("Permission denied or error:", err);
                 handleCameraError(err);
             });
         }
@@ -1465,9 +1491,7 @@
                     document.getElementById('qr-reader-container').classList.add('hidden');
                     document.getElementById('btn-start-camera').classList.remove('hidden');
                     document.getElementById('btn-stop-camera').classList.add('hidden');
-                }).catch(err => {
-                    console.log('Camera already stopped');
-                });
+                }).catch(err => { console.log('Camera stopped'); });
             } else if (!isCameraOn) {
                 document.getElementById('qr-reader-container').classList.add('hidden');
                 document.getElementById('btn-start-camera').classList.remove('hidden');
@@ -1475,124 +1499,149 @@
             }
         }
 
-        function confirmLog(empId) {
+        function confirmLog(empId, isManualEntry = false) {
+            if(isProcessingScan) return;
             isProcessingScan = true; 
 
-            // Play a beep sound and flash the scanner
-            const beep = new Audio('https://www.soundjay.com/buttons/beep-07.wav');
-            beep.volume = 0.5;
-            beep.play().catch(e => console.log('Audio autoplay blocked'));
-            
-            const qrContainer = document.getElementById('qr-reader-container');
-            if(qrContainer) {
-                qrContainer.classList.add('scan-flash');
-                setTimeout(() => qrContainer.classList.remove('scan-flash'), 600);
-            }
-
+            // Clear search field
             document.getElementById('manual-scan-input').value = '';
             document.getElementById('live-search-results').classList.add('hidden');
 
-            // Show Scanning Animation
-            Swal.fire({
-                title: 'QR Code Detected!',
-                html: '<p class="text-sm text-gray-500">Processing ID...</p>',
-                timer: 600,
-                timerProgressBar: true,
-                allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
-            }).then(() => {
-                const emp = appState.employees.find(e => e.id === empId);
-                if(!emp) {
-                    Swal.fire({ icon: 'error', title: 'Not Found', text: 'QR code does not match directory.' }).then(() => { isProcessingScan = false; });
-                    return;
+            const emp = appState.employees.find(e => e.id === empId);
+            if(!emp) {
+                Swal.fire({ icon: 'error', title: 'Not Found', text: 'QR code does not match directory.' }).then(() => { isProcessingScan = false; });
+                return;
+            }
+
+            // Figure out real time details
+            const now = new Date();
+            const hours = now.getHours();
+            const timeStr = now.toLocaleTimeString('en-US', { hour12: true, hour: '2-digit', minute: '2-digit' });
+            const scanType = hours < 12 ? 'IN' : 'OUT'; // Below 12 is IN, After 12 is OUT
+
+            if (!isManualEntry && isCameraOn) {
+                // Flash animation & Beep for QR scans
+                const beep = new Audio('https://www.soundjay.com/buttons/beep-07.wav');
+                beep.volume = 0.5; beep.play().catch(e => console.log('Audio autoplay blocked'));
+                const qrContainer = document.getElementById('qr-reader-container');
+                if(qrContainer) {
+                    qrContainer.classList.add('scan-flash');
+                    setTimeout(() => qrContainer.classList.remove('scan-flash'), 600);
                 }
 
-                const exists = appState.attendance.find(a => a.sessionId === activeSessionId && a.empId === emp.id);
-                if (exists) {
-                    Swal.fire({ icon: 'info', title: 'Already Logged', text: `${emp.name} has already scanned in today.` }).then(() => { isProcessingScan = false; });
-                    return;
-                }
-
-                const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md">` : `<div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user"></i></div>`;
-
+                // "Stay put" camera capture sequence
                 Swal.fire({
-                    title: 'Confirm Scan',
-                    html: `
-                        <div class="text-center mt-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100">
-                            ${photoHtml}
-                            <h4 class="font-bold text-gray-900 text-lg mb-0.5">${emp.name}</h4>
-                            <p class="text-sm font-mono text-secondary mb-3">${emp.id}</p>
-                            <p class="text-sm text-gray-700 font-medium mb-1">${emp.pos}</p>
-                            <p class="text-xs text-gray-500">${emp.office}</p>
-                        </div>
-                        <p class="text-[11px] text-gray-400 mt-4 uppercase tracking-widest font-bold"><i class="fas fa-bolt text-amber-400 mr-1"></i> Auto-filling 4 time slots</p>
-                    `,
-                    showCancelButton: true,
-                    confirmButtonColor: '#10b981',
-                    cancelButtonColor: '#e2e8f0',
-                    cancelButtonText: '<span class="text-gray-800 font-semibold">Cancel</span>',
-                    confirmButtonText: '<i class="fas fa-check mr-2"></i> Confirm & Log'
-                }).then((result) => {
-                    if (result.isConfirmed) {
-                        processAllSlotsLog(emp);
-                    } else {
-                        isProcessingScan = false;
-                    }
+                    title: 'QR Verified!',
+                    html: '<h3 class="text-xl font-bold text-secondary mt-2">Please look at the camera...</h3><p class="text-sm text-gray-500 mt-2">Capturing live photo in 1.5s</p>',
+                    timer: 1500,
+                    timerProgressBar: true,
+                    allowOutsideClick: false,
+                    showConfirmButton: false,
+                    didOpen: () => { Swal.showLoading(); }
+                }).then(() => {
+                    // Capture photo exactly at the end of the countdown
+                    const livePhotoBase64 = captureCameraFrame();
+                    showFinalConfirmation(emp, scanType, timeStr, livePhotoBase64);
                 });
+            } else {
+                // Manual search - skip camera sequence
+                showFinalConfirmation(emp, scanType, timeStr, null);
+            }
+        }
+
+        function showFinalConfirmation(emp, scanType, timeStr, livePhotoBase64) {
+            const scanBadge = scanType === 'IN' 
+                ? '<span class="bg-emerald-100 text-emerald-800 px-2 py-1 rounded text-xs font-bold border border-emerald-200">TIME IN</span>' 
+                : '<span class="bg-blue-100 text-blue-800 px-2 py-1 rounded text-xs font-bold border border-blue-200">TIME OUT</span>';
+
+            const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-16 h-16 rounded-full object-cover mx-auto mb-3 shadow-md">` : `<div class="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center text-gray-400 text-2xl mx-auto mb-3"><i class="fas fa-user"></i></div>`;
+
+            let livePhotoPreview = '';
+            if (livePhotoBase64) {
+                livePhotoPreview = `<div class="mt-4"><p class="text-[10px] text-gray-400 font-bold uppercase tracking-wider mb-2">Live Photo Captured</p><img src="${livePhotoBase64}" class="w-full h-32 object-cover rounded-lg border border-gray-200 opacity-80 shadow-inner"></div>`;
+            }
+
+            Swal.fire({
+                title: 'Confirm Attendance',
+                html: `
+                    <div class="text-center mt-2 bg-gray-50/50 p-5 rounded-2xl border border-gray-100 shadow-sm relative overflow-hidden">
+                        ${photoHtml}
+                        <h4 class="font-bold text-gray-900 text-lg mb-0.5">${emp.name}</h4>
+                        <p class="text-sm font-mono text-secondary mb-3">${emp.id}</p>
+                        <div class="flex items-center justify-center gap-3 bg-white p-2 rounded-lg border border-gray-200 w-fit mx-auto">
+                            ${scanBadge} <span class="font-mono text-sm font-bold text-gray-700">${timeStr}</span>
+                        </div>
+                        ${livePhotoPreview}
+                    </div>
+                `,
+                showCancelButton: true,
+                confirmButtonColor: '#10b981',
+                cancelButtonColor: '#e2e8f0',
+                cancelButtonText: '<span class="text-gray-800 font-semibold">Cancel</span>',
+                confirmButtonText: '<i class="fas fa-check mr-2"></i> Confirm Log'
+            }).then((result) => {
+                if (result.isConfirmed) {
+                    processRealtimeLog(emp, scanType, timeStr, livePhotoBase64);
+                } else {
+                    isProcessingScan = false;
+                }
             });
         }
 
-        function processAllSlotsLog(emp) {
+        function processRealtimeLog(emp, scanType, timeStr, livePhotoBase64) {
             Swal.fire({
                 title: 'Logging Attendance',
-                html: 'Syncing data to Google Sheets...',
+                html: 'Syncing to Google Sheets & Uploading Photo...',
                 allowOutsideClick: false,
-                didOpen: () => {
-                    Swal.showLoading();
-                }
+                didOpen: () => { Swal.showLoading(); }
             });
-
-            const logEntry = {
-                sessionId: activeSessionId,
-                empId: emp.id,
-                amIn: '08:00 AM',
-                amOut: '12:00 PM',
-                pmIn: '01:00 PM',
-                pmOut: '05:00 PM'
-            };
 
             const evt = appState.events.find(e => e.id === activeEventId);
             const sess = appState.sessions.find(s => s.id === activeSessionId);
-            const sessName = sess ? sess.name : 'the session';
-            
-            const fullTemplate = evt && evt.emailTemplate ? evt.emailTemplate : 'Thank you for attending the event.';
-            const parts = fullTemplate.split('<--LINK-->');
-            let emailText = parts[0];
-            const emailLinkUrl = parts[1] || '';
 
-            let parsedBody = emailText
-                .replace(/{name}/g, emp.name)
-                .replace(/{event}/g, evt ? evt.name : 'the event')
-                .replace(/{session}/g, sessName);
+            const payload = {
+                sessionId: activeSessionId,
+                empId: emp.id,
+                scanType: scanType, // 'IN' or 'OUT'
+                timeString: timeStr,
+                photoBase64: livePhotoBase64 || '',
+                eventName: evt ? evt.name : 'Unknown Event',
+                sessionName: sess ? sess.name : 'Unknown Session'
+            };
 
-            gasRequest('saveAttendanceLog', logEntry).then(() => {
-                appState.attendance.push(logEntry); 
+            gasRequest('saveAttendanceLog', payload).then((response) => {
+                // Update local state smoothly
+                let existingLogIndex = appState.attendance.findIndex(a => a.sessionId === activeSessionId && a.empId === emp.id);
+                
+                if (existingLogIndex !== -1) {
+                    // Update row locally
+                    if (scanType === 'IN') appState.attendance[existingLogIndex].amIn = timeStr;
+                    else appState.attendance[existingLogIndex].pmOut = timeStr;
+                    
+                    if (response.photoUrl) appState.attendance[existingLogIndex].photo = response.photoUrl;
+                } else {
+                    // Create row locally
+                    appState.attendance.push({
+                        sessionId: activeSessionId,
+                        empId: emp.id,
+                        amIn: scanType === 'IN' ? timeStr : '',
+                        pmOut: scanType === 'OUT' ? timeStr : '',
+                        photo: response.photoUrl || ''
+                    });
+                }
+                
                 renderAttendanceTable();
                 
-                // Fire and forget email notification
-                gasRequest('sendEmailNotification', {
-                    email: emp.email,
-                    subject: `Attendance Confirmed: ${evt ? evt.name : 'Event'}`,
-                    body: parsedBody,
-                    link: emailLinkUrl
-                }).catch(e => console.warn('Email send failed:', e));
+                // Fire Email Notification
+                const fullTemplate = evt && evt.emailTemplate ? evt.emailTemplate : 'Thank you for attending the event.';
+                const parts = fullTemplate.split('<--LINK-->');
+                let parsedBody = parts[0].replace(/{name}/g, emp.name).replace(/{event}/g, evt ? evt.name : 'the event').replace(/{session}/g, sess ? sess.name : 'the session');
+                gasRequest('sendEmailNotification', { email: emp.email, subject: `Attendance Confirmed: ${evt ? evt.name : 'Event'}`, body: parsedBody, link: parts[1] || '' }).catch(e => console.warn('Email send failed'));
 
                 Swal.fire({ toast: true, position: 'top-end', icon: 'success', title: `${emp.name} Logged!`, showConfirmButton: false, timer: 2000 });
                 isProcessingScan = false;
             }).catch(err => {
-                Swal.fire({icon: 'error', title: 'Log Error', text: err.message});
+                Swal.fire({icon: 'error', title: 'Sync Error', text: err.message});
                 isProcessingScan = false;
             });
         }
