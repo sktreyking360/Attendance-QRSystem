@@ -39,7 +39,7 @@
         }
     </script>
     <style>
-        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap');
         
         body { font-family: 'Inter', sans-serif; background-color: #f1f5f9; }
         ::-webkit-scrollbar { width: 6px; height: 6px; }
@@ -50,9 +50,41 @@
         .fade-in { animation: fadeIn 0.4s cubic-bezier(0.4, 0, 0.2, 1); }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         
-        .id-card { width: 250px; height: 400px; background: url('https://www.transparenttextures.com/patterns/cubes.png'), linear-gradient(to bottom, #ffffff, #f8fafc); border-radius: 16px; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1); position: relative; overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; }
-        .id-card-header { background: #0f172a; color: white; width: 100%; text-align: center; padding: 15px 0; font-weight: 700; font-size: 1.1rem; letter-spacing: 0.05em; }
-        .id-photo-placeholder { width: 110px; height: 110px; background: #e2e8f0; border-radius: 50%; margin-top: 25px; display: flex; align-items: center; justify-content: center; font-size: 3rem; color: #94a3b8; border: 4px solid white; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); overflow: hidden; object-fit: cover; }
+        /* Modernized ID Card Design */
+        .id-card { 
+            width: 250px; height: 400px; 
+            background-color: #ffffff; 
+            background-image: radial-gradient(circle at top right, #f8fafc 0%, #ffffff 100%);
+            border-radius: 16px; 
+            box-shadow: 0 10px 25px -5px rgba(0,0,0,0.1), 0 8px 10px -6px rgba(0,0,0,0.1); 
+            position: relative; overflow: hidden; border: 1px solid #e2e8f0; 
+            display: flex; flex-direction: column; align-items: center; 
+        }
+        .id-card::before {
+            content: '';
+            position: absolute;
+            top: 0; left: 0; right: 0;
+            height: 130px;
+            background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); /* Elegant Red Gradient */
+            z-index: 0;
+            border-bottom-left-radius: 20px;
+            border-bottom-right-radius: 20px;
+            box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);
+        }
+        .id-card-header { 
+            position: relative; z-index: 1; color: white; width: 100%; text-align: center; 
+            padding: 16px 0 0 0; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.05em; 
+            text-shadow: 0 2px 4px rgba(0,0,0,0.2);
+        }
+        .id-card-subheader {
+            position: relative; z-index: 1; color: #fca5a5; font-size: 0.65rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em; text-align: center; margin-bottom: 8px;
+        }
+        .id-photo-placeholder { 
+            position: relative; z-index: 1; width: 110px; height: 110px; background: #f1f5f9; 
+            border-radius: 50%; margin-top: 2px; display: flex; align-items: center; justify-content: center; 
+            font-size: 3.5rem; color: #cbd5e1; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.15); 
+            overflow: hidden; object-fit: cover; background-color: white;
+        }
         .id-photo-placeholder img { width: 100%; height: 100%; object-fit: cover; }
         
         .btn-loading { pointer-events: none; opacity: 0.8; }
@@ -194,6 +226,9 @@
                         <!-- Bulk Actions Container -->
                         <div id="bulk-actions-container" class="hidden flex items-center gap-2 w-full sm:w-auto justify-end">
                             <span class="text-xs font-bold text-gray-500 bg-gray-50 px-2.5 py-1.5 rounded-md border border-gray-200" id="bulk-count">0 selected</span>
+                            <button onclick="handleBulkEmail()" class="bg-amber-50 hover:bg-amber-100 text-amber-700 border border-amber-200 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-1.5">
+                                <i class="fas fa-envelope"></i> Bulk Email
+                            </button>
                             <button onclick="handleBulkDownload('id')" class="bg-indigo-50 hover:bg-indigo-100 text-indigo-700 border border-indigo-200 px-3 py-1.5 rounded-lg text-sm font-bold shadow-sm transition-all flex items-center gap-1.5">
                                 <i class="fas fa-id-card"></i> Bulk IDs
                             </button>
@@ -355,8 +390,10 @@
                                 <thead class="sticky top-0 z-10">
                                     <tr class="bg-gray-50 text-gray-500 uppercase tracking-wider text-[11px] font-bold border-b border-gray-200 shadow-sm">
                                         <th class="p-4 pl-6">Employee</th>
-                                        <th class="p-4 text-center">Time In</th>
-                                        <th class="p-4 text-center">Time Out</th>
+                                        <th class="p-4 text-center">AM In</th>
+                                        <th class="p-4 text-center">AM Out</th>
+                                        <th class="p-4 text-center">PM In</th>
+                                        <th class="p-4 text-center">PM Out</th>
                                         <th class="p-4 text-center">Live Photo</th>
                                     </tr>
                                 </thead>
@@ -374,29 +411,28 @@
 
     <!-- Generate ID Modal -->
     <div id="modal-generate-id" class="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
-        <!-- ... (Existing Generate ID Modal code remains identical) ... -->
         <div class="bg-white rounded-2xl shadow-2xl p-6 flex flex-col items-center max-w-sm w-full fade-in">
-            <div class="w-full flex justify-between items-center mb-4">
-                <h3 class="font-bold text-gray-800">Preview ID Card</h3>
+            <div class="w-full flex justify-between items-center mb-6">
+                <h3 class="font-bold text-gray-800"><i class="fas fa-id-badge text-secondary mr-2"></i> Preview ID Card</h3>
                 <button onclick="closeModal('modal-generate-id')" class="text-gray-400 hover:text-gray-800 transition-colors w-8 h-8 rounded-full hover:bg-gray-100 flex items-center justify-center"><i class="fas fa-times"></i></button>
             </div>
             
-            <div id="id-card-element" class="id-card scale-95 sm:scale-100 transform origin-top pointer-events-none">
-                <div class="id-card-header">DSWD QR ID</div>
+            <div id="id-card-element" class="id-card scale-95 sm:scale-100 transform origin-top">
+                <div class="id-card-header">DSWD REGION 10</div>
+                <div class="id-card-subheader" id="card-subheader">Event QR ID</div>
                 <div class="id-photo-placeholder" id="card-photo-container">
                     <i class="fas fa-user"></i>
                 </div>
-                <h2 id="card-name" class="mt-4 font-bold text-lg text-gray-900 text-center px-4 leading-tight">Name</h2>
-                <p id="card-pos" class="text-xs text-secondary font-bold uppercase tracking-wider text-center px-4 mt-1">Position</p>
-                <p id="card-office" class="text-[10px] text-gray-500 text-center px-4 mt-1 leading-tight line-clamp-2">Office</p>
+                <h2 id="card-name" class="mt-4 font-extrabold text-[1.1rem] text-gray-900 text-center px-4 leading-tight relative z-10">Name</h2>
+                <p id="card-pos" class="text-[0.7rem] text-red-600 font-bold uppercase tracking-wider text-center px-4 mt-1 relative z-10"></p>
                 
-                <div class="mt-auto w-full flex flex-col items-center pb-5">
-                    <div id="card-qrcode" class="p-2 bg-white rounded-lg shadow-sm border border-gray-100 mb-2"></div>
-                    <p id="card-id" class="text-[10px] text-gray-400 font-mono tracking-widest"><span></span></p>
+                <div class="mt-auto w-full flex flex-col items-center pb-5 relative z-10">
+                    <div id="card-qrcode" class="p-1.5 bg-white rounded-lg shadow-sm border border-gray-200 mb-1.5"></div>
+                    <p class="text-[0.65rem] text-gray-400 font-mono tracking-widest" id="card-id-text">ID-000</p>
                 </div>
             </div>
 
-            <div class="mt-6 w-full flex flex-col gap-2">
+            <div class="mt-8 w-full flex flex-col gap-2">
                 <button id="btn-download-preview-id" onclick="downloadIDCard()" class="w-full bg-accent text-white px-6 py-3 rounded-xl hover:bg-emerald-600 transition-all shadow-lg shadow-emerald-500/30 font-bold flex justify-center items-center gap-2">
                     <i class="fas fa-download"></i> Save ID as PNG
                 </button>
@@ -672,7 +708,6 @@
         let activeEventId = null;
         let activeSessionId = null;
         let currentPreviewEmpId = null;
-        let qrCodeInstance = null;
         
         // Camera handling state
         let html5QrcodeScanner = null;
@@ -1016,7 +1051,7 @@
             const logs = appState.attendance.filter(a => a.sessionId === activeSessionId);
             
             if(logs.length === 0) {
-                 tbody.innerHTML = `<tr><td colspan="4" class="p-8 text-center text-gray-400">No attendance logs yet.</td></tr>`;
+                 tbody.innerHTML = `<tr><td colspan="6" class="p-8 text-center text-gray-400">No attendance logs yet.</td></tr>`;
                  return;
             }
 
@@ -1024,8 +1059,9 @@
                 const emp = appState.employees.find(e => e.id === log.empId) || { name: 'Unknown', pos: 'Unknown', office: 'Unknown' };
                 const photoHtml = emp.photo ? `<img src="${emp.photo}" class="w-8 h-8 rounded-full object-cover mr-3">` : `<div class="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center mr-3 text-gray-400 text-xs"><i class="fas fa-user"></i></div>`;
                 
+                // Reverted 'View Link' back to text instead of image thumbnail
                 const livePhotoLink = log.photo 
-                    ? `<a href="${log.photo}" target="_blank" class="text-secondary hover:underline flex items-center justify-center gap-1"><i class="fas fa-camera-retro"></i> View</a>` 
+                    ? `<a href="${log.photo}" target="_blank" class="text-secondary hover:underline text-xs font-bold">View</a>` 
                     : `<span class="text-gray-400 text-xs italic">None</span>`;
 
                 tbody.innerHTML += `
@@ -1038,6 +1074,8 @@
                             </div>
                         </td>
                         <td class="p-4 text-center font-mono text-xs"><span class="${log.amIn ? 'bg-emerald-50 text-emerald-700 font-bold border-emerald-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.amIn || '-'}</span></td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="bg-gray-50 text-gray-500 font-bold border-gray-200 px-2 py-1 rounded border">12:00 PM</span></td>
+                        <td class="p-4 text-center font-mono text-xs"><span class="bg-gray-50 text-gray-500 font-bold border-gray-200 px-2 py-1 rounded border">01:00 PM</span></td>
                         <td class="p-4 text-center font-mono text-xs"><span class="${log.pmOut ? 'bg-blue-50 text-blue-700 font-bold border-blue-200' : 'bg-gray-50 text-gray-400'} px-2 py-1 rounded border">${log.pmOut || '-'}</span></td>
                         <td class="p-4 text-center text-xs font-semibold">${livePhotoLink}</td>
                     </tr>`;
@@ -1053,11 +1091,14 @@
             let tbodyHtml = '';
             
             if (logs.length === 0) {
-                tbodyHtml = `<tr><td colspan="9" style="text-align: center; padding: 20px; color: #666; font-style: italic;">No attendance recorded for this session yet.</td></tr>`;
+                tbodyHtml = `<tr><td colspan="11" style="text-align: center; padding: 20px; color: #666; font-style: italic;">No attendance recorded for this session yet.</td></tr>`;
             } else {
                 logs.forEach(log => {
                     const emp = appState.employees.find(e => e.id === log.empId) || {};
-                    const photoLink = log.photo ? `<a href="${log.photo}" target="_blank" style="color: #3b82f6; text-decoration: none; font-weight: bold;">[View Photo]</a>` : `<span style="color: #9ca3af; font-size: 8pt;">N/A</span>`;
+                    // Display the actual URL string instead of 'View Photo'
+                    const photoLink = log.photo 
+                        ? `<div style="word-break: break-all; font-size: 6pt; color: #3b82f6; max-width: 150px; line-height: 1.2;">${log.photo}</div>` 
+                        : `<span style="color: #9ca3af; font-size: 8pt;">N/A</span>`;
                     
                     tbodyHtml += `
                         <tr style="border-bottom: 1px solid #e2e8f0;">
@@ -1067,6 +1108,8 @@
                             <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.email || ''}</td>
                             <td style="padding: 10px; border-right: 1px solid #e2e8f0; color: #475569;">${emp.phone || ''}</td>
                             <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #059669;">${log.amIn || ''}</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b;">12:00 PM</td>
+                            <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #64748b;">01:00 PM</td>
                             <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center; font-family: monospace; font-weight: bold; color: #2563eb;">${log.pmOut || ''}</td>
                             <td style="padding: 10px; border-right: 1px solid #e2e8f0; text-align: center;">${photoLink}</td>
                             <td style="padding: 10px; text-align: center; color: #64748b; font-size: 8pt; text-transform: uppercase;">e-attendance</td>
@@ -1075,12 +1118,21 @@
                 });
             }
 
+            // Generate QR code targeting the Drive Folder for these photos
+            const folderUrl = sess.folderUrl || `https://drive.google.com/drive/search?q=${encodeURIComponent(evt.name + ' ' + sess.name)}`;
+            const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=${encodeURIComponent(folderUrl)}`;
+
             const printHtml = `
                 <div style="font-family: 'Inter', Arial, sans-serif; padding: 20px;">
-                    <div style="display: flex; align-items: center; justify-content: center; margin-bottom: 25px; border-bottom: 3px solid #0f172a; padding-bottom: 20px;">
-                        <div style="text-align: center;">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; margin-bottom: 25px; border-bottom: 3px solid #0f172a; padding-bottom: 20px;">
+                        <div style="width: 100px;"></div> <!-- Spacer to keep text centered -->
+                        <div style="text-align: center; flex: 1;">
                             <h2 style="margin: 0; font-size: 16pt; font-weight: 800; text-transform: uppercase; color: #0f172a; letter-spacing: 0.05em;">Department of Social Welfare and Development Region 10</h2>
                             <p style="margin: 5px 0 0 0; font-size: 11pt; color: #475569;">Masterson Avenue Cagayan de Oro City</p>
+                        </div>
+                        <div style="width: 100px; text-align: right; display: flex; flex-direction: column; align-items: flex-end;">
+                            <img src="${qrImageUrl}" style="width: 75px; height: 75px; border: 1px solid #e2e8f0; padding: 4px; border-radius: 8px; background: white;">
+                            <p style="font-size: 6pt; font-weight: bold; color: #64748b; margin-top: 6px; text-transform: uppercase; text-align: center; width: 75px;">Event Photos<br>Drive Link</p>
                         </div>
                     </div>
                     
@@ -1092,18 +1144,20 @@
                         <h3 style="margin: 0; font-size: 14pt; font-weight: bold; color: #3b82f6;">Session: ${sess.name} &nbsp;&mdash;&nbsp; ${new Date(sess.date).toLocaleDateString()}</h3>
                     </div>
 
-                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid #cbd5e1;">
+                    <table style="width: 100%; border-collapse: collapse; font-size: 9pt; border: 1px solid #cbd5e1; table-layout: fixed;">
                         <thead>
                             <tr style="background-color: #0f172a; color: white; -webkit-print-color-adjust: exact; text-transform: uppercase; font-size: 8pt; letter-spacing: 0.05em;">
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Name</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Position</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Office</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Email</th>
-                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155;">Contact Number</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Time In</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Time Out</th>
-                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 80px;">Live Photo</th>
-                                <th style="padding: 12px 10px; text-align: center; width: 80px;">Remarks</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 14%;">Name</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 12%;">Position</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 12%;">Office</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 13%;">Email</th>
+                                <th style="padding: 12px 10px; text-align: left; border-right: 1px solid #334155; width: 11%;">Contact</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM In</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">AM Out</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM In</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 6%;">PM Out</th>
+                                <th style="padding: 12px 10px; text-align: center; border-right: 1px solid #334155; width: 14%;">Live Photo Link</th>
+                                <th style="padding: 12px 10px; text-align: center; width: 6%;">Remarks</th>
                             </tr>
                         </thead>
                         <tbody>${tbodyHtml}</tbody>
@@ -1115,7 +1169,8 @@
                 </div>
             `;
             document.getElementById('print-container').innerHTML = printHtml;
-            setTimeout(() => { window.print(); }, 300);
+            // Delay increased to give the QR Code image time to fetch before invoking print
+            setTimeout(() => { window.print(); }, 800);
         }
 
         function handleImageUpload(event, previewId, base64Id) {
@@ -1777,6 +1832,239 @@
             }).catch(err => {
                 Swal.fire({icon: 'error', title: 'Sync Error', text: err.message});
                 isProcessingScan = false;
+            });
+        }
+
+        // ==========================================
+        // --- QR AND ID GENERATION / DOWNLOADS ---
+        // ==========================================
+
+        function openIDModal(empId) {
+            const emp = appState.employees.find(e => e.id === empId);
+            if (!emp) return;
+            currentPreviewEmpId = emp.id;
+
+            document.getElementById('card-name').innerText = emp.name;
+            document.getElementById('card-subheader').innerText = 'Event QR ID';
+            
+            const posEl = document.getElementById('card-pos');
+            if (emp.pos && emp.pos.trim() !== '') {
+                posEl.innerText = emp.pos;
+                posEl.style.display = 'block';
+            } else {
+                posEl.style.display = 'none';
+            }
+
+            document.getElementById('card-id-text').innerText = emp.id;
+
+            const photoContainer = document.getElementById('card-photo-container');
+            if (emp.photo) {
+                photoContainer.innerHTML = `<img src="${emp.photo}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            } else {
+                photoContainer.innerHTML = `<i class="fas fa-user"></i>`;
+            }
+
+            const qrContainer = document.getElementById('card-qrcode');
+            qrContainer.innerHTML = '';
+            new QRCode(qrContainer, {
+                text: emp.id,
+                width: 80,
+                height: 80,
+                colorDark: "#000000",
+                colorLight: "#ffffff",
+                correctLevel: QRCode.CorrectLevel.H
+            });
+
+            openModal('modal-generate-id');
+        }
+
+        function downloadIDCard() {
+            const emp = appState.employees.find(e => e.id === currentPreviewEmpId);
+            if (!emp) return;
+            
+            const cardEl = document.getElementById('id-card-element');
+            const btn = document.getElementById('btn-download-preview-id');
+            const originalText = btn.innerHTML;
+            btn.innerHTML = `<i class="fas fa-spinner fa-spin"></i> Saving...`;
+            btn.disabled = true;
+
+            const safeName = emp.name.trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+
+            html2canvas(cardEl, { scale: 3, useCORS: true, backgroundColor: null }).then(canvas => {
+                canvas.toBlob(function(blob) {
+                    saveAs(blob, `ID_${emp.id}_${safeName}.png`);
+                    btn.innerHTML = originalText;
+                    btn.disabled = false;
+                });
+            });
+        }
+
+        function downloadQRCodeOnly(empId) {
+            const emp = appState.employees.find(e => e.id === empId);
+            if (!emp) return;
+            
+            const tempDiv = document.createElement('div');
+            document.body.appendChild(tempDiv);
+            
+            new QRCode(tempDiv, {
+                text: emp.id,
+                width: 256,
+                height: 256,
+                colorDark : "#0f172a",
+                colorLight : "#ffffff",
+                correctLevel : QRCode.CorrectLevel.H
+            });
+
+            setTimeout(() => {
+                const img = tempDiv.querySelector('img');
+                const safeName = emp.name.trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+                
+                if (img && img.src) {
+                    fetch(img.src).then(res => res.blob()).then(blob => {
+                        saveAs(blob, `QR_${emp.id}_${safeName}.png`);
+                        document.body.removeChild(tempDiv);
+                    });
+                } else {
+                    const canvas = tempDiv.querySelector('canvas');
+                    if(canvas) {
+                        canvas.toBlob(function(blob) {
+                            saveAs(blob, `QR_${emp.id}_${safeName}.png`);
+                            document.body.removeChild(tempDiv);
+                        });
+                    }
+                }
+            }, 300);
+        }
+
+        async function handleBulkEmail() {
+            const checkboxes = document.querySelectorAll('.emp-checkbox:checked');
+            if(checkboxes.length === 0) return;
+            
+            const selectedEmps = [];
+            for(let i=0; i < checkboxes.length; i++) {
+                const emp = appState.employees.find(e => e.id === checkboxes[i].value);
+                if(emp && emp.email && emp.email.trim() !== '') {
+                    selectedEmps.push(emp);
+                }
+            }
+
+            if(selectedEmps.length === 0) {
+                Swal.fire({ icon: 'warning', title: 'No Emails Found', text: 'None of the selected employees have a valid email address listed.' });
+                return;
+            }
+
+            Swal.fire({
+                title: 'Sending Emails...',
+                html: `Sending detailed QR instructions to <b>${selectedEmps.length}</b> participants.<br><br><span class="text-xs text-gray-500">Please wait, do not close this window...</span>`,
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            let successCount = 0;
+            let failCount = 0;
+
+            for (const emp of selectedEmps) {
+                // Generate a live QR code URL for the email
+                const qrLink = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(emp.id)}`;
+                const emailBody = `Hello ${emp.name},\n\nHere are your official Event QR ID details:\n\nName: ${emp.name}\nPosition: ${emp.pos || 'N/A'}\nEvent QR ID: ${emp.id}\n\nPlease present your QR code at the registration desk for attendance.\n\nYou can view and download your unique QR Code using this link:`;
+                
+                try {
+                    await gasRequest('sendEmailNotification', {
+                        email: emp.email.trim(),
+                        subject: `Your Event QR ID - ${emp.name}`,
+                        body: emailBody,
+                        link: qrLink
+                    });
+                    successCount++;
+                } catch (err) {
+                    failCount++;
+                }
+            }
+
+            Swal.fire({
+                icon: failCount === 0 ? 'success' : 'warning',
+                title: 'Bulk Email Complete',
+                text: `Successfully sent ${successCount} emails.${failCount > 0 ? ` Failed to send ${failCount} emails.` : ''}`
+            });
+        }
+
+        async function handleBulkDownload(type) {
+            const checkboxes = document.querySelectorAll('.emp-checkbox:checked');
+            if(checkboxes.length === 0) return;
+            
+            const zip = new JSZip();
+            const folderName = type === 'id' ? "Bulk_ID_Cards" : "Bulk_QR_Codes";
+            const folder = zip.folder(folderName);
+            
+            Swal.fire({
+                title: 'Generating files...',
+                html: `Processing ${checkboxes.length} records. Please wait...`,
+                allowOutsideClick: false,
+                didOpen: () => { Swal.showLoading(); }
+            });
+
+            const tempContainer = document.createElement('div');
+            tempContainer.style.position = 'absolute';
+            tempContainer.style.left = '-9999px';
+            document.body.appendChild(tempContainer);
+
+            for(let i=0; i < checkboxes.length; i++) {
+                const empId = checkboxes[i].value;
+                const emp = appState.employees.find(e => e.id === empId);
+                if(!emp) continue;
+                
+                // Deep sanitization to prevent Windows Defender false positives
+                const safeName = emp.name.trim().replace(/[^a-z0-9]+/gi, '_').replace(/^_+|_+$/g, '').toLowerCase();
+
+                if (type === 'qr') {
+                    const qrDiv = document.createElement('div');
+                    new QRCode(qrDiv, { text: emp.id, width: 256, height: 256, correctLevel: QRCode.CorrectLevel.H });
+                    await new Promise(r => setTimeout(r, 100)); // allow render time
+                    const canvas = qrDiv.querySelector('canvas');
+                    const dataUrl = canvas.toDataURL("image/png").split(',')[1];
+                    folder.file(`QR_${emp.id}_${safeName}.png`, dataUrl, {base64: true});
+                } 
+                else if (type === 'id') {
+                    // Inline styles matching the new ID design to render properly in hidden div
+                    tempContainer.innerHTML = `
+                        <div id="temp-id-${emp.id}" style="width: 250px; height: 400px; background-color: #ffffff; background-image: radial-gradient(circle at top right, #f8fafc 0%, #ffffff 100%); border-radius: 16px; position: relative; overflow: hidden; border: 1px solid #e2e8f0; display: flex; flex-direction: column; align-items: center; font-family: 'Inter', sans-serif;">
+                            <div style="position: absolute; top: 0; left: 0; right: 0; height: 130px; background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%); z-index: 0; border-bottom-left-radius: 20px; border-bottom-right-radius: 20px;"></div>
+                            
+                            <div style="position: relative; z-index: 1; color: white; width: 100%; text-align: center; padding: 16px 0 0 0; font-weight: 800; font-size: 1.15rem; letter-spacing: 0.05em;">DSWD REGION 10</div>
+                            <div style="position: relative; z-index: 1; color: #fca5a5; font-size: 0.65rem; text-transform: uppercase; font-weight: 700; letter-spacing: 0.1em; text-align: center; margin-bottom: 8px;">Event QR ID</div>
+                            
+                            <div style="position: relative; z-index: 1; width: 110px; height: 110px; background: #ffffff; border-radius: 50%; margin-top: 2px; display: flex; align-items: center; justify-content: center; font-size: 3.5rem; color: #cbd5e1; border: 4px solid white; box-shadow: 0 4px 10px rgba(0,0,0,0.15); overflow: hidden;">
+                                ${emp.photo ? `<img src="${emp.photo}" style="width: 100%; height: 100%; object-fit: cover;">` : `<i class="fas fa-user"></i>`}
+                            </div>
+                            
+                            <h2 style="margin-top: 15px; font-weight: 800; font-size: 1.1rem; color: #111827; text-align: center; padding: 0 15px; line-height: 1.2; position: relative; z-index: 10;">${emp.name}</h2>
+                            ${emp.pos ? `<p style="font-size: 0.7rem; color: #dc2626; font-weight: 700; text-transform: uppercase; letter-spacing: 0.05em; text-align: center; padding: 0 15px; margin-top: 4px; position: relative; z-index: 10;">${emp.pos}</p>` : ''}
+                            
+                            <div style="margin-top: auto; width: 100%; display: flex; flex-direction: column; align-items: center; padding-bottom: 20px; position: relative; z-index: 10;">
+                                <div id="temp-qr-${emp.id}" style="padding: 6px; background: white; border-radius: 8px; border: 1px solid #e2e8f0; margin-bottom: 6px;"></div>
+                                <p style="font-size: 0.65rem; color: #9ca3af; font-family: monospace; letter-spacing: 0.1em;">${emp.id}</p>
+                            </div>
+                        </div>
+                    `;
+                    
+                    const qrDiv = document.getElementById(`temp-qr-${emp.id}`);
+                    new QRCode(qrDiv, { text: emp.id, width: 80, height: 80, correctLevel: QRCode.CorrectLevel.H });
+                    
+                    await new Promise(r => setTimeout(r, 150)); // let DOM update and fonts load
+                    
+                    const cardEl = document.getElementById(`temp-id-${emp.id}`);
+                    const canvas = await html2canvas(cardEl, { scale: 3, useCORS: true, backgroundColor: null });
+                    const dataUrl = canvas.toDataURL("image/png").split(',')[1];
+                    folder.file(`ID_${emp.id}_${safeName}.png`, dataUrl, {base64: true});
+                }
+            }
+            
+            document.body.removeChild(tempContainer);
+
+            zip.generateAsync({type:"blob"}).then(function(content) {
+                saveAs(content, `${folderName}.zip`);
+                Swal.close();
+                Swal.fire({toast: true, position: 'top-end', icon: 'success', title: 'Download Complete', showConfirmButton: false, timer: 2000});
             });
         }
     </script>
