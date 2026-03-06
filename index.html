@@ -1198,8 +1198,8 @@
                                 <th style="width: 5.5%;">AM Out</th>
                                 <th style="width: 5.5%;">PM In</th>
                                 <th style="width: 5.5%;">PM Out</th>
-                                <th style="width: 13.5%;">Photo Link</th>
-                                <th style="width: 5.5%;">Remarks</th>
+                                <th style="width: 13.5%;">Live Photo Link</th>
+                                <th style="width: 5.5%;">Rem</th>
                             </tr>
                         </thead>
                         <tbody>${tbodyHtml}</tbody>
@@ -1620,38 +1620,44 @@
         }
 
         function startScanner() {
-            document.getElementById('qr-reader-container').classList.remove('hidden');
-            document.getElementById('btn-start-camera').classList.add('hidden');
-            document.getElementById('camera-controls').classList.remove('hidden');
+            return new Promise((resolve, reject) => {
+                document.getElementById('qr-reader-container').classList.remove('hidden');
+                document.getElementById('btn-start-camera').classList.add('hidden');
+                document.getElementById('camera-controls').classList.remove('hidden');
 
-            if (!html5QrcodeScanner) {
-                html5QrcodeScanner = new Html5Qrcode("qr-reader");
-            }
-            
-            const config = { fps: 10, qrbox: { width: 250, height: 250 } };
-            
-            Html5Qrcode.getCameras().then(devices => {
-                if (devices && devices.length) {
-                    availableCameras = devices;
-                    
-                    // Default to back camera initially
-                    currentCameraIndex = devices.findIndex(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment"));
-                    if (currentCameraIndex === -1) currentCameraIndex = 0;
-
-                    let cameraId = availableCameras[currentCameraIndex].id;
-
-                    html5QrcodeScanner.start(cameraId, config, handleQRScan)
-                    .then(() => {
-                        isCameraOn = true;
-                    }).catch(err => {
-                        handleCameraError(err);
-                    });
-                } else {
-                    Swal.fire({ icon: 'error', title: 'No Cameras Found', text: 'No cameras were detected on this device.' });
-                    stopScanner();
+                if (!html5QrcodeScanner) {
+                    html5QrcodeScanner = new Html5Qrcode("qr-reader");
                 }
-            }).catch(err => {
-                handleCameraError(err);
+                
+                const config = { fps: 10, qrbox: { width: 250, height: 250 } };
+                
+                Html5Qrcode.getCameras().then(devices => {
+                    if (devices && devices.length) {
+                        availableCameras = devices;
+                        
+                        // Default to back camera initially
+                        currentCameraIndex = devices.findIndex(d => d.label.toLowerCase().includes("back") || d.label.toLowerCase().includes("environment"));
+                        if (currentCameraIndex === -1) currentCameraIndex = 0;
+
+                        let cameraId = availableCameras[currentCameraIndex].id;
+
+                        html5QrcodeScanner.start(cameraId, config, handleQRScan)
+                        .then(() => {
+                            isCameraOn = true;
+                            resolve();
+                        }).catch(err => {
+                            handleCameraError(err);
+                            reject(err);
+                        });
+                    } else {
+                        Swal.fire({ icon: 'error', title: 'No Cameras Found', text: 'No cameras were detected on this device.' });
+                        stopScanner();
+                        reject(new Error("No cameras"));
+                    }
+                }).catch(err => {
+                    handleCameraError(err);
+                    reject(err);
+                });
             });
         }
 
@@ -1742,8 +1748,7 @@
                 }
             }
 
-            // Allow manual entry to use the camera if it's currently active
-            if (isCameraOn) {
+            const proceedToCapture = () => {
                 // Flash animation & Beep for QR scans only
                 if (!isManualEntry) {
                     const beep = new Audio('https://www.soundjay.com/buttons/beep-07.wav');
@@ -1754,10 +1759,28 @@
                         setTimeout(() => qrContainer.classList.remove('scan-flash'), 600);
                     }
                 }
-
                 showCaptureModal(emp, scanType, timeStr);
+            };
+
+            // If the camera is not running during manual entry, we start it automatically so they can take a live photo
+            if (!isCameraOn) {
+                Swal.fire({
+                    title: 'Starting Camera...',
+                    text: 'Initializing camera for live photo capture.',
+                    allowOutsideClick: false,
+                    didOpen: () => { Swal.showLoading(); }
+                });
+                
+                startScanner().then(() => {
+                    Swal.close();
+                    proceedToCapture();
+                }).catch(() => {
+                    Swal.close();
+                    // Fallback to directly confirming log without photo if camera is completely broken
+                    showFinalConfirmation(emp, scanType, timeStr, null);
+                });
             } else {
-                showFinalConfirmation(emp, scanType, timeStr, null);
+                proceedToCapture();
             }
         }
 
